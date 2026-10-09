@@ -14,12 +14,15 @@
   font-weight: 700;
   font-size: 22pt;
   line-height: 1.35;
-  margin: 24px 0 0;
+  /* 34px (bukan 24px) supaya jarak kop->judul total ~48px, sesuai
+     pengukuran dokumen resmi (header punya margin-bottom 14px sendiri) */
+  margin: 34px 0 0;
 }
 
 .pdf-toc-list {
   list-style: none;
-  margin: 140px 0 0;
+  /* 128px: diukur presisi dari jarak judul -> daftar bernomor di JPG resmi */
+  margin: 128px 0 0;
   padding: 0 8px;
 }
 

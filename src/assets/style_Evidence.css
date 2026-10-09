@@ -104,7 +104,11 @@
   width: 794px;
   max-width: 100%;
   background: #fff;
-  padding: 32px 40px;
+  /* Margin halaman diukur dari dokumen Word resmi (bukan dikira-kira):
+     atas/bawah 48px (~0,5" — jarak kop/header standar Word), kiri/kanan 96px
+     (~1" — margin "Normal" standar Word). Berlaku untuk SEMUA jenis halaman
+     karena .pdf-page dipakai bersama. */
+  padding: 48px 96px;
   margin: 0 auto;
   font-family: Arial, Helvetica, sans-serif;
   color: #222;

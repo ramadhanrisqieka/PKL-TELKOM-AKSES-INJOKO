@@ -8,10 +8,12 @@
   min-height: 1123px; /* ~ proporsi A4, sama seperti Cover & Daftar Isi */
 }
 
+/* Jarak antar paragraf diukur ~22-29px dari dokumen resmi (sebelumnya 16px,
+   terlalu rapat) */
 .pdf-ba-paragraph {
   font-size: 13px;
   line-height: 1.6;
-  margin: 16px 0;
+  margin: 22px 0;
   text-align: justify;
 }
 
@@ -25,9 +27,10 @@
 }
 
 /* Blok Nama / NIK / Jabatan penandatangan (label TIDAK tebal, beda dari
-   .pdf-info-label yang tebal di tabel PROYEK/KONTRAK/dst) */
+   .pdf-info-label yang tebal di tabel PROYEK/KONTRAK/dst). Indentasi kiri
+   (26px) dan jarak atas/bawah diukur dari dokumen resmi. */
 .pdf-ba-signer {
-  margin: 10px 0 4px 40px;
+  margin: 16px 0 8px 26px;
 }
 
 .pdf-ba-signer-row {
@@ -41,8 +44,9 @@
   flex-shrink: 0;
 }
 
+/* Jarak sebelum/sesudah daftar bernomor diukur ~22px (sebelumnya 12px) */
 .pdf-ba-numbered {
-  margin: 12px 0;
+  margin: 18px 0;
   padding-left: 22px;
   font-size: 13px;
   line-height: 1.6;
@@ -52,11 +56,15 @@
   margin-bottom: 4px;
 }
 
-/* Blok tanda tangan, rata kanan seperti dokumen resmi */
+/* Blok tanda tangan, rata kanan seperti dokumen resmi. margin-top diukur
+   presisi dari JPG resmi: ada jarak kosong besar (~136px) sebelum blok ini
+   dimulai -- di dokumen Word aslinya ini berupa beberapa baris kosong
+   sebelum "Surabaya, ...". Sebelumnya cuma 40px, membuat blok tanda
+   tangan tampak terlalu naik dibanding dokumen resmi. */
 .pdf-ba-sign-wrap {
   display: flex;
   justify-content: flex-end;
-  margin-top: 40px;
+  margin-top: 136px;
 }
 
 .pdf-ba-sign-block {
