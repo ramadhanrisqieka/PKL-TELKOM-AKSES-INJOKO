@@ -11,14 +11,13 @@ import ExportOptionsPanel, {
 import PhotoCompressor from './PhotoCompressor';
 import { compressImage, formatBytes, MAX_ORIGINAL_BYTES, MAX_ORIGINAL_MB } from '../utils/imageCompress';
 import { generatePdfFromElement } from '../utils/pdfFromElement';
-import type { ProjectData, EvidenceItem, DefaultEvidenceItem } from '../types/evidence';
+import type { ProjectData, EvidenceItem } from '../types/evidence';
 import '../assets/style_Evidence.css';
 
 interface EvidenceFormProps {
   docTitle: string;
   pageTitle: string;
   activeMenu: string;
-  defaultItems: DefaultEvidenceItem[];
 }
 
 // Jumlah slot Lampiran Evidence yang independen. Mau nambah/kurangi lagi?
@@ -26,7 +25,7 @@ interface EvidenceFormProps {
 const EVIDENCE_SLOT_COUNT = 12;
 
 type EvidenceSlot = `evidence${number}`;
-type UploadMode = 'single' | BulkLikeMode | 'compress';
+type UploadMode = BulkLikeMode | 'compress';
 
 const EVIDENCE_SLOTS: EvidenceSlot[] = Array.from(
   { length: EVIDENCE_SLOT_COUNT },
@@ -49,7 +48,6 @@ const isBulkLikeMode = (m: string): m is BulkLikeMode =>
   (BULK_LIKE_MODES as string[]).includes(m);
 
 const MODE_TITLES: Record<string, string> = {
-  single: 'Upload Satu per Satu',
   compress: 'Kompres Foto',
   ...Object.fromEntries(EVIDENCE_SLOTS.map((slot, i) => [slot, `Lampiran Evidence ${i + 1}`])),
 };
@@ -80,24 +78,20 @@ export default function EvidenceForm({
   docTitle,
   pageTitle,
   activeMenu,
-  defaultItems,
 }: EvidenceFormProps) {
-  // Mode dipilih dari menu sidebar: ?mode=single (default), ?mode=bulk, atau ?mode=compress
+  // Mode dipilih dari menu sidebar: ?mode=evidence1..evidence12, atau ?mode=compress.
+  // Kalau tidak ada/tidak dikenali, otomatis dianggap Lampiran Evidence 1.
   const [searchParams, setSearchParams] = useSearchParams();
   const rawMode = searchParams.get('mode') ?? '';
   const uploadMode: UploadMode = isBulkLikeMode(rawMode)
     ? rawMode
     : rawMode === 'compress'
     ? 'compress'
-    : 'single';
+    : EVIDENCE_SLOTS[0];
 
   const [project, setProject] = useState<ProjectData>(emptyProject);
   const [docHeading, setDocHeading] = useState('LAMPIRAN EVIDENT PEKERJAAN');
 
-  // Daftar evidence untuk mode "Satu per Satu"
-  const [items, setItems] = useState<EvidenceItem[]>(
-    defaultItems.map((d) => ({ id: d.id, label: d.label, dataUrl: null }))
-  );
   // Keranjang TERPISAH untuk Lampiran Evidence 1-12
   // (ganti mode tidak saling menghapus isian satu sama lain)
   const [evidenceItemsByMode, setEvidenceItemsByMode] = useState<Record<BulkLikeMode, EvidenceItem[]>>(
@@ -111,9 +105,9 @@ export default function EvidenceForm({
   const [isDragging, setIsDragging] = useState(false);
 
   // Foto yang melebihi batas ukuran dan dialihkan ke menu Kompres Foto, serta slot
-  // mana yang harus dituju lagi setelah selesai dikompres (single, atau evidence1-4)
+  // mana yang harus dituju lagi setelah selesai dikompres (salah satu Lampiran Evidence)
   const [pendingCompress, setPendingCompress] = useState<File[]>([]);
-  const [compressReturnMode, setCompressReturnMode] = useState<'single' | BulkLikeMode>(EVIDENCE_SLOTS[0]);
+  const [compressReturnMode, setCompressReturnMode] = useState<BulkLikeMode>(EVIDENCE_SLOTS[0]);
 
   // Helper baca/tulis keranjang evidence slot yang SEDANG AKTIF
   const setSlotItems = (slot: BulkLikeMode, updater: (prev: EvidenceItem[]) => EvidenceItem[]) => {
@@ -126,13 +120,12 @@ export default function EvidenceForm({
   // Opsi export PDF (logo, kolom, kualitas, dsb.) dipilih di halaman preview
   const [exportOpts, setExportOpts] = useState<ExportOptions>(DEFAULT_EXPORT_OPTIONS);
 
-  // Daftar yang sedang dipakai sesuai mode (slot evidence1-4 masing2 independen, atau mode single)
-  const activeItems: EvidenceItem[] = isBulkLikeMode(uploadMode) ? evidenceItemsByMode[uploadMode] : items;
+  // Daftar yang sedang dipakai sesuai mode: tiap slot Lampiran Evidence punya
+  // keranjangnya sendiri. Di mode "compress" tidak ada daftar (hanya halaman kompres).
+  const activeItems: EvidenceItem[] = isBulkLikeMode(uploadMode) ? evidenceItemsByMode[uploadMode] : [];
   const setActiveItems = (updater: (prev: EvidenceItem[]) => EvidenceItem[]) => {
     if (isBulkLikeMode(uploadMode)) {
       setSlotItems(uploadMode, updater);
-    } else {
-      setItems(updater);
     }
   };
 
@@ -160,7 +153,7 @@ export default function EvidenceForm({
 
   // Foto di atas batas ukuran dialihkan ke menu Kompres Foto. `fromMode` dicatat
   // supaya setelah selesai dikompres, hasilnya kembali ke slot/mode asal yang benar.
-  const redirectToCompress = (bigFiles: File[], fromMode: 'single' | BulkLikeMode) => {
+  const redirectToCompress = (bigFiles: File[], fromMode: BulkLikeMode) => {
     const daftar = bigFiles.map((f) => `• ${f.name} (${formatBytes(f.size)})`).join('\n');
     const lanjut = window.confirm(
       `Foto berikut berukuran lebih dari ${MAX_ORIGINAL_MB} MB dan perlu dikompres dulu:\n\n${daftar}\n\nBuka menu Kompres Foto sekarang?`
@@ -172,29 +165,9 @@ export default function EvidenceForm({
     }
   };
 
-  // ---------- Mode: Satu per Satu ----------
-  const handlePhotoChange = async (id: string, file: File | null) => {
-    if (!file) return;
-    if (file.size > MAX_ORIGINAL_BYTES) {
-      redirectToCompress([file], 'single');
-      return;
-    }
-    try {
-      const preview = await compressImage(file);
-      setItems((prev) => prev.map((it) => (it.id === id ? { ...it, dataUrl: preview, file } : it)));
-    } catch (err) {
-      console.error(err);
-      alert(`Foto "${file.name}" tidak bisa dibuka. Pastikan formatnya JPG atau PNG.`);
-    }
-  };
-
-  const handleAddItem = () => {
-    setItems((prev) => [...prev, { id: generateId(), label: '', dataUrl: null }]);
-  };
-
-  // ---------- Mode: Lampiran Evidence 1-4 (dulu "Upload Sekaligus") ----------
+  // ---------- Mode: Lampiran Evidence 1-12 ----------
   // Semua fungsi di bawah ini generik: otomatis mengoperasikan keranjang slot
-  // yang SEDANG AKTIF (evidence1, evidence2, evidence3, atau evidence4) lewat
+  // yang SEDANG AKTIF (evidence1 sampai evidence12) lewat
   // setActiveItems, jadi tidak ada data yang tercampur antar slot.
   const handleBulkFiles = async (fileList: File[]) => {
     if (!isBulkLikeMode(uploadMode)) return;
@@ -259,7 +232,7 @@ export default function EvidenceForm({
 
   // ---------- Mode: Kompres Foto ----------
   // Hasil kompres dikembalikan ke slot/mode ASAL (dicatat di compressReturnMode):
-  // bisa ke mode "Satu per Satu", atau ke salah satu Lampiran Evidence 1-4.
+  // yaitu salah satu Lampiran Evidence 1-12.
   const handleUseCompressed = async (files: File[]) => {
     const added: EvidenceItem[] = [];
     for (const file of files) {
@@ -271,11 +244,7 @@ export default function EvidenceForm({
       }
     }
 
-    if (compressReturnMode === 'single') {
-      setItems((prev) => [...prev, ...added]);
-    } else {
-      setSlotItems(compressReturnMode, (prev) => [...prev, ...added]);
-    }
+    setSlotItems(compressReturnMode, (prev) => [...prev, ...added]);
 
     setPendingCompress([]);
     setSearchParams({ mode: compressReturnMode });
@@ -441,168 +410,111 @@ export default function EvidenceForm({
           </label>
         </div>
 
-        {isBulkLikeMode(uploadMode) ? (
-          /* ================= MODE: UPLOAD SEKALIGUS ================= */
-          <div className="evidence-bulk">
-            <label
-              htmlFor="bulk-file-input"
-              className={`evidence-bulk-dropzone ${isDragging ? 'dragging' : ''} ${bulkProgress ? 'busy' : ''}`}
-              onDragOver={(e) => {
-                e.preventDefault();
-                setIsDragging(true);
-              }}
-              onDragLeave={() => setIsDragging(false)}
-              onDrop={(e) => {
-                e.preventDefault();
-                setIsDragging(false);
-                handleBulkFiles(Array.from<File>(e.dataTransfer.files));
-              }}
-            >
-              {bulkProgress ? (
-                <span className="evidence-bulk-title">
-                  Memproses foto {bulkProgress.done} dari {bulkProgress.total}...
-                </span>
-              ) : (
-                <>
-                  <span className="evidence-bulk-icon">⬆</span>
-                  <span className="evidence-bulk-title">Pilih banyak foto sekaligus</span>
-                  <span className="evidence-bulk-hint">
-                    atau seret dan lepas foto ke sini. Disarankan 4 atau 6 foto per lembar.
-                    Foto di atas {MAX_ORIGINAL_MB} MB akan diarahkan ke menu Kompres Foto.
-                  </span>
-                </>
-              )}
-            </label>
-            <input
-              id="bulk-file-input"
-              type="file"
-              accept="image/*"
-              multiple
-              className="evidence-upload-input"
-              disabled={!!bulkProgress}
-              onChange={(e) => {
-                const files = Array.from<File>(e.target.files ?? []);
-                e.target.value = ''; // supaya file yang sama bisa dipilih lagi
-                handleBulkFiles(files);
-              }}
-            />
-
-            {activeItems.length > 0 && (
+        {/* ================= UPLOAD FOTO SEKALIGUS (semua Lampiran Evidence) ================= */}
+        <div className="evidence-bulk">
+          <label
+            htmlFor="bulk-file-input"
+            className={`evidence-bulk-dropzone ${isDragging ? 'dragging' : ''} ${bulkProgress ? 'busy' : ''}`}
+            onDragOver={(e) => {
+              e.preventDefault();
+              setIsDragging(true);
+            }}
+            onDragLeave={() => setIsDragging(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setIsDragging(false);
+              handleBulkFiles(Array.from<File>(e.dataTransfer.files));
+            }}
+          >
+            {bulkProgress ? (
+              <span className="evidence-bulk-title">
+                Memproses foto {bulkProgress.done} dari {bulkProgress.total}...
+              </span>
+            ) : (
               <>
-                <div className="evidence-bulk-toolbar">
-                  <span>{activeItems.length} foto siap dipakai. Isi keterangan dan atur urutannya.</span>
-                  <button type="button" className="evidence-bulk-clear" onClick={handleClearBulk}>
-                    Hapus semua
-                  </button>
-                </div>
-
-                <div className="evidence-bulk-list">
-                  {activeItems.map((item, index) => (
-                    <div key={item.id} className="evidence-section-card evidence-bulk-card">
-                      <span className="evidence-bulk-number">{index + 1}</span>
-                      <button
-                        type="button"
-                        className="evidence-remove-btn"
-                        onClick={() => handleRemoveItem(item.id)}
-                        title="Hapus foto ini"
-                      >
-                        ×
-                      </button>
-
-                      <input
-                        type="text"
-                        className="evidence-label-input"
-                        placeholder="Ketik keterangan"
-                        value={item.label}
-                        onChange={(e) => handleLabelChange(item.id, e.target.value)}
-                      />
-
-                      {item.dataUrl && (
-                        <img src={item.dataUrl} alt={item.label} className="evidence-bulk-thumb" />
-                      )}
-
-                      <div className="evidence-bulk-actions">
-                        <button
-                          type="button"
-                          className="evidence-bulk-move"
-                          onClick={() => moveBulkItem(index, -1)}
-                          disabled={index === 0}
-                          title="Geser ke depan"
-                        >
-                          ←
-                        </button>
-                        <button
-                          type="button"
-                          className="evidence-bulk-move"
-                          onClick={() => moveBulkItem(index, 1)}
-                          disabled={index === activeItems.length - 1}
-                          title="Geser ke belakang"
-                        >
-                          →
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                <span className="evidence-bulk-icon">⬆</span>
+                <span className="evidence-bulk-title">Pilih banyak foto sekaligus</span>
+                <span className="evidence-bulk-hint">
+                  atau seret dan lepas foto ke sini. Disarankan 4 atau 6 foto per lembar.
+                  Foto di atas {MAX_ORIGINAL_MB} MB akan diarahkan ke menu Kompres Foto.
+                </span>
               </>
             )}
-          </div>
-        ) : (
-          /* ================= MODE: UPLOAD SATU PER SATU ================= */
-          <div className="evidence-sections">
-            {items.map((item) => (
-              <div key={item.id} className="evidence-section-card">
-                <button
-                  type="button"
-                  className="evidence-remove-btn"
-                  onClick={() => handleRemoveItem(item.id)}
-                  title="Hapus evidence ini"
-                >
-                  ×
+          </label>
+          <input
+            id="bulk-file-input"
+            type="file"
+            accept="image/*"
+            multiple
+            className="evidence-upload-input"
+            disabled={!!bulkProgress}
+            onChange={(e) => {
+              const files = Array.from<File>(e.target.files ?? []);
+              e.target.value = ''; // supaya file yang sama bisa dipilih lagi
+              handleBulkFiles(files);
+            }}
+          />
+
+          {activeItems.length > 0 && (
+            <>
+              <div className="evidence-bulk-toolbar">
+                <span>{activeItems.length} foto siap dipakai. Isi keterangan dan atur urutannya.</span>
+                <button type="button" className="evidence-bulk-clear" onClick={handleClearBulk}>
+                  Hapus semua
                 </button>
-
-                <input
-                  type="text"
-                  className="evidence-label-input"
-                  placeholder="Ketik disini"
-                  value={item.label}
-                  onChange={(e) => handleLabelChange(item.id, e.target.value)}
-                />
-
-                <label htmlFor={`evidence-file-${item.id}`} className="evidence-upload-box">
-                  {item.dataUrl ? (
-                    <img src={item.dataUrl} alt={item.label} className="evidence-photo-preview" />
-                  ) : (
-                    <>
-                      <span className="evidence-upload-icon">⬆</span>
-                      <span className="evidence-upload-text">Unggah foto disini</span>
-                    </>
-                  )}
-                </label>
-                <input
-                  id={`evidence-file-${item.id}`}
-                  type="file"
-                  accept="image/*"
-                  className="evidence-upload-input"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0] ?? null;
-                    e.target.value = '';
-                    handlePhotoChange(item.id, file);
-                  }}
-                />
-                {item.dataUrl && (
-                  <label htmlFor={`evidence-file-${item.id}`} className="evidence-change-photo-link">
-                    Ganti foto
-                  </label>
-                )}
               </div>
-            ))}
 
-            <button type="button" className="evidence-add-card" onClick={handleAddItem}>
-              + Tambah Evidence
-            </button>
-          </div>
-        )}
+              <div className="evidence-bulk-list">
+                {activeItems.map((item, index) => (
+                  <div key={item.id} className="evidence-section-card evidence-bulk-card">
+                    <span className="evidence-bulk-number">{index + 1}</span>
+                    <button
+                      type="button"
+                      className="evidence-remove-btn"
+                      onClick={() => handleRemoveItem(item.id)}
+                      title="Hapus foto ini"
+                    >
+                      ×
+                    </button>
+
+                    <input
+                      type="text"
+                      className="evidence-label-input"
+                      placeholder="Ketik keterangan"
+                      value={item.label}
+                      onChange={(e) => handleLabelChange(item.id, e.target.value)}
+                    />
+
+                    {item.dataUrl && (
+                      <img src={item.dataUrl} alt={item.label} className="evidence-bulk-thumb" />
+                    )}
+
+                    <div className="evidence-bulk-actions">
+                      <button
+                        type="button"
+                        className="evidence-bulk-move"
+                        onClick={() => moveBulkItem(index, -1)}
+                        disabled={index === 0}
+                        title="Geser ke depan"
+                      >
+                        ←
+                      </button>
+                      <button
+                        type="button"
+                        className="evidence-bulk-move"
+                        onClick={() => moveBulkItem(index, 1)}
+                        disabled={index === activeItems.length - 1}
+                        title="Geser ke belakang"
+                      >
+                        →
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
 
         <button className="evidence-submit-btn" onClick={handlePreview}>
           Lihat Preview

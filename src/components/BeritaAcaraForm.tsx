@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import MainLayout from './MainLayout';
 import BeritaAcaraPage, { type ChoicePair } from './BeritaAcaraPage';
-import SimpleExportOptionsPanel, {
-  DEFAULT_SIMPLE_EXPORT_OPTIONS,
-  type SimpleExportOptions,
-} from './SimpleExportOptions';
-import { QUALITY_PRESETS, buildPdfFileName } from './ExportOptions';
 import { compressImage } from '../utils/imageCompress';
 import { generatePdfFromElement } from '../utils/pdfFromElement';
+import ExportOptionsPanel, {
+  DEFAULT_EXPORT_OPTIONS,
+  QUALITY_PRESETS,
+  buildPdfFileName,
+  type ExportOptions,
+} from './ExportOptions';
 import type { ProjectData } from '../types/evidence';
 import '../assets/style_BeritaAcara.css';
 
@@ -32,32 +33,15 @@ const emptyProject: ProjectData = {
   pelaksana: '',
 };
 
-/** Tombol pilih dua opsi (mis. "telah" / "belum"); yang tidak dipilih akan
- *  tampil dicoret di halaman PDF — meniru coretan tulis tangan di dokumen asli. */
-function ChoicePicker({
-  labels,
-  selected,
-  onChange,
-}: {
-  labels: [string, string];
-  selected: 0 | 1;
-  onChange: (v: 0 | 1) => void;
-}) {
-  return (
-    <span className="ba-choice-group">
-      {labels.map((label, i) => (
-        <button
-          key={label}
-          type="button"
-          className={`ba-choice-btn ${selected === i ? 'active' : ''}`}
-          onClick={() => onChange(i as 0 | 1)}
-        >
-          {label}
-        </button>
-      ))}
-    </span>
-  );
-}
+// Dulu ada tombol pilih "telah/belum", "dapat/tidak dapat", "layak/tidak
+// layak" (komponen ChoicePicker) yang bisa diklik user di form. Atas
+// permintaan pembimbing, pilihan itu sekarang DIHILANGKAN dari form —
+// hasilnya dipatenkan selalu "telah", "dapat", "layak" (yang lain otomatis
+// tercoret), persis seperti contoh dokumen resminya. Lihat FIXED_CHOICE_*
+// di bawah: kalau nanti pola dokumennya berubah, cukup ganti nilai di sana.
+const FIXED_CHOICE_1: ChoicePair = { labels: ['telah', 'belum'], selected: 0 };
+const FIXED_CHOICE_2A: ChoicePair = { labels: ['dapat', 'tidak dapat'], selected: 0 };
+const FIXED_CHOICE_2B: ChoicePair = { labels: ['layak', 'tidak layak'], selected: 0 };
 
 export default function BeritaAcaraForm({
   docTitle,
@@ -76,18 +60,13 @@ export default function BeritaAcaraForm({
   const [jabatanBaris2, setJabatanBaris2] = useState('PT. TELKOM AKSES');
   const [kota, setKota] = useState('');
 
-  const [choice1, setChoice1] = useState<0 | 1>(0); // telah / belum
-  const [choice2a, setChoice2a] = useState<0 | 1>(0); // dapat / tidak dapat
-  const [choice2b, setChoice2b] = useState<0 | 1>(0); // layak / tidak layak
   const [closingText, setClosingText] = useState(defaultClosingText);
 
   const [signatureDataUrl, setSignatureDataUrl] = useState<string | null>(null);
 
   const [mode, setMode] = useState<'form' | 'preview'>('form');
   const [isProcessing, setIsProcessing] = useState(false);
-  const [exportOpts, setExportOpts] = useState<SimpleExportOptions>(
-    DEFAULT_SIMPLE_EXPORT_OPTIONS
-  );
+  const [exportOpts, setExportOpts] = useState<ExportOptions>(DEFAULT_EXPORT_OPTIONS);
 
   const handleProjectChange = (field: keyof ProjectData, value: string) => {
     setProject((prev) => ({ ...prev, [field]: value }));
@@ -103,11 +82,6 @@ export default function BeritaAcaraForm({
       alert(`Foto tanda tangan "${file.name}" tidak bisa dibuka. Pastikan formatnya JPG atau PNG.`);
     }
   };
-
-  const buildPair = (labels: [string, string], selected: 0 | 1): ChoicePair => ({
-    labels,
-    selected,
-  });
 
   const handlePreview = () => {
     if (docHeading.trim() === '') {
@@ -165,13 +139,11 @@ export default function BeritaAcaraForm({
           </button>
         </div>
 
-        {/* Panel opsi berada DI LUAR div ber-id pdf-..., jadi tidak ikut masuk PDF */}
-        <SimpleExportOptionsPanel value={exportOpts} onChange={setExportOpts} />
+        {/* Panel opsi berada DI LUAR #pdf-ba-content, jadi tidak ikut masuk PDF */}
+        <ExportOptionsPanel value={exportOpts} onChange={setExportOpts} showColumns={false} />
 
         <div id="pdf-ba-content">
           <BeritaAcaraPage
-            showLogos={exportOpts.showLogos}
-            logoSize={exportOpts.logoSize}
             docTitle={docHeading}
             project={project}
             tanggalISO={tanggalISO}
@@ -180,11 +152,12 @@ export default function BeritaAcaraForm({
             jabatanBaris1={jabatanBaris1}
             jabatanBaris2={jabatanBaris2}
             kota={kota}
-            choice1={buildPair(['telah', 'belum'], choice1)}
-            choice2a={buildPair(['dapat', 'tidak dapat'], choice2a)}
-            choice2b={buildPair(['layak', 'tidak layak'], choice2b)}
+            choice1={FIXED_CHOICE_1}
+            choice2a={FIXED_CHOICE_2A}
+            choice2b={FIXED_CHOICE_2B}
             closingText={closingText}
             signatureDataUrl={signatureDataUrl}
+            options={exportOpts}
           />
         </div>
       </MainLayout>
@@ -338,23 +311,13 @@ export default function BeritaAcaraForm({
           )}
         </div>
 
-        <div className="evidence-heading-field">
-          <label>Poin 1 — Pelaksanaan pekerjaan</label>
-          <div>
-            <ChoicePicker labels={['telah', 'belum']} selected={choice1} onChange={setChoice1} />
-            <span style={{ marginLeft: 8, fontSize: 13 }}>diselesaikan dengan spesifikasi teknis TELKOM</span>
-          </div>
-        </div>
-
-        <div className="evidence-heading-field">
-          <label>Poin 2 — Hasil pekerjaan</label>
-          <div>
-            <ChoicePicker labels={['dapat', 'tidak dapat']} selected={choice2a} onChange={setChoice2a} />
-            <span style={{ margin: '0 8px', fontSize: 13 }}>diterima dan</span>
-            <ChoicePicker labels={['layak', 'tidak layak']} selected={choice2b} onChange={setChoice2b} />
-            <span style={{ marginLeft: 8, fontSize: 13 }}>untuk diajukan Uji Terima (UT)</span>
-          </div>
-        </div>
+        {/*
+          Dulu di sini ada "Poin 1" dan "Poin 2": tombol untuk memilih
+          telah/belum, dapat/tidak dapat, layak/tidak layak. Atas permintaan
+          pembimbing, bagian ini DIHAPUS dari form — hasilnya di PDF sekarang
+          dipatenkan selalu "telah", "dapat", "layak" (lihat FIXED_CHOICE_*
+          di atas komponen ini), sama seperti dokumen contoh resminya.
+        */}
 
         <div className="evidence-heading-field">
           <label htmlFor="ba-closing">Kalimat Penutup</label>

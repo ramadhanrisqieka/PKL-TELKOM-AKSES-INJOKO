@@ -1,7 +1,8 @@
+import { useEffect, useState } from 'react';
 import PdfHeader from './PdfHeader';
-import type { LogoSize } from '../config/brand';
 import type { ProjectData } from '../types/evidence';
 import { formatTanggalKata, parseDateLocal } from '../utils/terbilang';
+import { DEFAULT_EXPORT_OPTIONS, type ExportOptions } from './ExportOptions';
 import '../assets/style_Evidence.css';
 import '../assets/style_BeritaAcara.css';
 
@@ -13,8 +14,6 @@ export interface ChoicePair {
 }
 
 interface BeritaAcaraPageProps {
-  showLogos: boolean;
-  logoSize: LogoSize;
   docTitle: string; // judul halaman, mis. "LAPORAN COMMISIONING TEST"
   project: ProjectData;
   tanggalISO: string; // dari <input type="date">
@@ -28,26 +27,152 @@ interface BeritaAcaraPageProps {
   choice2b: ChoicePair;
   closingText: string;
   signatureDataUrl: string | null;
+  /** Opsi export dari panel "Opsi Export PDF". Kosong = pengaturan standar. */
+  options?: ExportOptions;
 }
 
-/** Menampilkan satu pasangan pilihan coret, mis. "telah / ~~belum~~" */
-function Choice({ labels, selected }: ChoicePair) {
-  return (
-    <>
-      <span className={selected === 0 ? 'pdf-ba-choice-selected' : 'pdf-ba-choice-unselected'}>
-        {labels[0]}
-      </span>
-      {' / '}
-      <span className={selected === 1 ? 'pdf-ba-choice-selected' : 'pdf-ba-choice-unselected'}>
-        {labels[1]}
-      </span>
-    </>
-  );
+/**
+ * CATATAN PENTING — baca ini dulu sebelum mengubah cara coret ditampilkan.
+ *
+ * Enam cara BERBEDA sudah dicoba untuk mencoret satu KATA di tengah teks
+ * mengalir (di dalam <li>), dan SEMUANYA gagal di html2canvas saat export
+ * PDF — beberapa bahkan gagal juga di preview browser — walau tekniknya
+ * sangat berbeda-beda:
+ *   1. `text-decoration: line-through` — salah hitung posisi garis.
+ *   2. elemen anak + `position:absolute` + `transform:translateY(-50%)`
+ *      — transform tidak diterapkan, garis nempel di atas kata.
+ *   3. `background-image: linear-gradient(...)` pada span — bug lain soal
+ *      background-position/size.
+ *   4. elemen anak + `position:absolute` + `top:50%` + `margin-top` negatif
+ *      — gejala sama seperti #2.
+ *   5. `<svg>` hidup di DOM dengan `vertical-align` ditebak manual — aturan
+ *      sejajar-baseline untuk `<svg>` ternyata tidak konsisten.
+ *   6. SVG dijadikan `<img src="data:image/svg+xml...">` dengan
+ *      `vertical-align` DIHITUNG (bukan ditebak) — hasilnya tetap kata
+ *      melenceng jauh, bahkan sampai terpisah ke "baris" sendiri. Ini
+ *      jauh lebih besar dari sekadar salah hitung beberapa piksel, jadi
+ *      kesimpulannya: masalahnya BUKAN di angka vertical-align sama
+ *      sekali, melainkan html2canvas memang tidak bisa diandalkan untuk
+ *      menyelaraskan SATU ELEMEN KECIL (gambar/SVG) di tengah-tengah teks
+ *      mengalir di dalam <li>, apa pun tekniknya.
+ *
+ * SOLUSI SEKARANG: berhenti mencoba menyelipkan elemen kecil di tengah
+ * teks. Sebagai gantinya, SATU BARIS PENUH (contoh: "Pelaksanaan pekerjaan
+ * telah / belum diselesaikan dengan spesifikasi teknis TELKOM") digambar
+ * SEKALIGUS jadi SATU gambar utuh, pakai Canvas API bawaan browser
+ * (`ctx.measureText`, `ctx.fillText`, `ctx.stroke`) — bukan perkiraan lebar
+ * huruf manual lagi, tapi UKURAN SUNGGUHAN yang diukur langsung oleh mesin
+ * render teks browser itu sendiri. Karena seluruh baris jadi satu gambar,
+ * tidak ada lagi "elemen kecil di tengah teks lain" yang perlu
+ * diselaraskan — jadi tidak ada lagi yang bisa html2canvas salah
+ * selaraskan. <li>-nya cukup berisi satu <img> saja, ditampilkan sebagai
+ * blok penuh.
+ */
+
+/** Satu potongan teks dalam satu baris: teks biasa, tebal, atau dicoret. */
+interface LineSegment {
+  text: string;
+  bold?: boolean;
+  struck?: boolean;
+}
+
+const CHOICE_LINE_FONT_SIZE = 13;
+const CHOICE_LINE_FONT_FAMILY = 'Arial, Helvetica, sans-serif';
+// Disamakan dengan .pdf-ba-numbered { line-height: 1.6 } di style_BeritaAcara.css
+const CHOICE_LINE_HEIGHT = Math.ceil(CHOICE_LINE_FONT_SIZE * 1.6);
+// Gambar dirender 3x lebih besar lalu diperkecil lewat width/height HTML,
+// supaya tetap tajam waktu ikut di-screenshot (html2canvas sendiri biasanya
+// juga memakai scale > 1 — lihat quality.scale di pdfFromElement.ts).
+const CHOICE_LINE_RENDER_SCALE = 3;
+
+/**
+ * Menggambar satu baris penuh (gabungan beberapa LineSegment) ke kanvas
+ * tersembunyi, lalu mengembalikan hasilnya sebagai data URL gambar PNG.
+ * Lebar tiap potongan teks diukur SUNGGUHAN lewat `ctx.measureText`, jadi
+ * posisi dan panjang garis coretnya pasti pas dengan lebar teks aslinya.
+ */
+function renderChoiceLine(segments: LineSegment[]): { src: string; width: number; height: number } | null {
+  const measureCtx = document.createElement('canvas').getContext('2d');
+  if (!measureCtx) return null;
+
+  const widths = segments.map((seg) => {
+    measureCtx.font = `${seg.bold ? 700 : 400} ${CHOICE_LINE_FONT_SIZE}px ${CHOICE_LINE_FONT_FAMILY}`;
+    return measureCtx.measureText(seg.text).width;
+  });
+  const totalWidth = widths.reduce((sum, w) => sum + w, 0);
+
+  const width = Math.ceil(totalWidth) + 2;
+  const height = CHOICE_LINE_HEIGHT;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = width * CHOICE_LINE_RENDER_SCALE;
+  canvas.height = height * CHOICE_LINE_RENDER_SCALE;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+  ctx.scale(CHOICE_LINE_RENDER_SCALE, CHOICE_LINE_RENDER_SCALE);
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillStyle = '#222';
+
+  // Posisi baseline standar di dalam kotak setinggi `height` (kira-kira
+  // 72% dari atas — pas untuk font Arial ukuran ini).
+  const baselineY = Math.round(height * 0.72);
+  let x = 1;
+  segments.forEach((seg, i) => {
+    ctx.font = `${seg.bold ? 700 : 400} ${CHOICE_LINE_FONT_SIZE}px ${CHOICE_LINE_FONT_FAMILY}`;
+    ctx.fillText(seg.text, x, baselineY);
+    if (seg.struck) {
+      const strikeY = baselineY - CHOICE_LINE_FONT_SIZE * 0.3;
+      ctx.strokeStyle = '#222';
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.moveTo(x, strikeY);
+      ctx.lineTo(x + widths[i], strikeY);
+      ctx.stroke();
+    }
+    x += widths[i];
+  });
+
+  return { src: canvas.toDataURL('image/png'), width, height };
+}
+
+/**
+ * Satu baris nomor (isi <li>), digambar utuh sebagai SATU gambar lewat
+ * `renderChoiceLine` (lihat catatan panjang di atas). Dirender lewat
+ * `useEffect` karena butuh Canvas API yang cuma ada di browser; sebelum itu
+ * selesai (sepersekian detik pertama), ditampilkan teks HTML biasa dulu
+ * sebagai cadangan supaya tidak terlihat kosong.
+ */
+function ChoiceLine({ segments }: { segments: LineSegment[] }) {
+  const [img, setImg] = useState<{ src: string; width: number; height: number } | null>(null);
+  const key = segments.map((s) => `${s.text}|${s.bold ? 1 : 0}|${s.struck ? 1 : 0}`).join('~');
+
+  useEffect(() => {
+    setImg(renderChoiceLine(segments));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+
+  if (!img) {
+    return (
+      <>
+        {segments.map((seg, i) => (
+          <span
+            key={i}
+            style={{
+              fontWeight: seg.bold ? 700 : 400,
+              textDecoration: seg.struck ? 'line-through' : 'none',
+            }}
+          >
+            {seg.text}
+          </span>
+        ))}
+      </>
+    );
+  }
+
+  return <img src={img.src} width={img.width} height={img.height} alt="" className="pdf-ba-choice-line-img" />;
 }
 
 export default function BeritaAcaraPage({
-  showLogos,
-  logoSize,
   docTitle,
   project,
   tanggalISO,
@@ -61,6 +186,7 @@ export default function BeritaAcaraPage({
   choice2b,
   closingText,
   signatureDataUrl,
+  options = DEFAULT_EXPORT_OPTIONS,
 }: BeritaAcaraPageProps) {
   const tgl = parseDateLocal(tanggalISO);
   const kata = tgl
@@ -69,7 +195,7 @@ export default function BeritaAcaraPage({
 
   return (
     <div className="pdf-page pdf-ba-page">
-      <PdfHeader showLogos={showLogos} logoSize={logoSize} />
+      <PdfHeader showLogos={options.showLogos} logoSize={options.logoSize} />
 
       <h1 className="pdf-title">{docTitle}</h1>
 
@@ -130,12 +256,30 @@ export default function BeritaAcaraPage({
 
       <ol className="pdf-ba-numbered">
         <li>
-          Pelaksanaan pekerjaan <Choice {...choice1} /> diselesaikan dengan spesifikasi teknis
-          TELKOM
+          <ChoiceLine
+            segments={[
+              { text: 'Pelaksanaan pekerjaan ' },
+              { text: choice1.labels[choice1.selected], bold: true },
+              { text: ' / ' },
+              { text: choice1.labels[choice1.selected === 0 ? 1 : 0], struck: true },
+              { text: ' diselesaikan dengan spesifikasi teknis TELKOM' },
+            ]}
+          />
         </li>
         <li>
-          Hasil pekerjaan <Choice {...choice2a} /> diterima dan <Choice {...choice2b} /> untuk
-          diajukan Uji Terima (UT)
+          <ChoiceLine
+            segments={[
+              { text: 'Hasil pekerjaan ' },
+              { text: choice2a.labels[choice2a.selected], bold: true },
+              { text: ' / ' },
+              { text: choice2a.labels[choice2a.selected === 0 ? 1 : 0], struck: true },
+              { text: ' diterima dan ' },
+              { text: choice2b.labels[choice2b.selected], bold: true },
+              { text: ' / ' },
+              { text: choice2b.labels[choice2b.selected === 0 ? 1 : 0], struck: true },
+              { text: ' untuk diajukan Uji Terima (UT)' },
+            ]}
+          />
         </li>
       </ol>
 
@@ -157,6 +301,8 @@ export default function BeritaAcaraPage({
           <p>NIK. {nik}</p>
         </div>
       </div>
+
+      {options.showPageNumber && <div className="pdf-page-number">Halaman 1</div>}
     </div>
   );
 }

@@ -8,29 +8,32 @@
   min-height: 1123px; /* ~ proporsi A4, sama seperti Cover & Daftar Isi */
 }
 
-/* Jarak antar paragraf diukur ~22-29px dari dokumen resmi (sebelumnya 16px,
-   terlalu rapat) */
 .pdf-ba-paragraph {
   font-size: 13px;
   line-height: 1.6;
-  margin: 22px 0;
+  margin: 16px 0;
   text-align: justify;
 }
 
-.pdf-ba-choice-selected {
-  font-weight: 700;
-}
-
-.pdf-ba-choice-unselected {
-  text-decoration: line-through;
-  font-weight: 400;
+/* PENTING — JANGAN ganti teknik ini tanpa alasan kuat. ENAM cara berbeda
+   sudah dicoba untuk mencoret satu KATA di tengah teks mengalir, dan
+   SEMUANYA gagal di html2canvas (dipakai saat export PDF) — riwayat
+   lengkapnya ada di komentar besar sebelum komponen ChoiceLine di
+   BeritaAcaraPage.tsx. Kesimpulannya: html2canvas tidak bisa diandalkan
+   untuk menyelaraskan satu elemen kecil di tengah teks lain, apa pun
+   tekniknya — jadi sekarang SATU BARIS PENUH digambar sekaligus jadi SATU
+   gambar utuh (lewat Canvas API, lihat `renderChoiceLine`), bukan cuma
+   kata yang dicoret saja. Karena itu `<li>` cukup berisi satu <img>
+   sebagai blok penuh — tidak ada lagi pencampuran teks HTML dan gambar
+   kecil dalam satu baris yang perlu diselaraskan. */
+.pdf-ba-choice-line-img {
+  display: block;
 }
 
 /* Blok Nama / NIK / Jabatan penandatangan (label TIDAK tebal, beda dari
-   .pdf-info-label yang tebal di tabel PROYEK/KONTRAK/dst). Indentasi kiri
-   (26px) dan jarak atas/bawah diukur dari dokumen resmi. */
+   .pdf-info-label yang tebal di tabel PROYEK/KONTRAK/dst) */
 .pdf-ba-signer {
-  margin: 16px 0 8px 26px;
+  margin: 10px 0 4px 40px;
 }
 
 .pdf-ba-signer-row {
@@ -44,9 +47,8 @@
   flex-shrink: 0;
 }
 
-/* Jarak sebelum/sesudah daftar bernomor diukur ~22px (sebelumnya 12px) */
 .pdf-ba-numbered {
-  margin: 18px 0;
+  margin: 12px 0;
   padding-left: 22px;
   font-size: 13px;
   line-height: 1.6;
@@ -56,15 +58,11 @@
   margin-bottom: 4px;
 }
 
-/* Blok tanda tangan, rata kanan seperti dokumen resmi. margin-top diukur
-   presisi dari JPG resmi: ada jarak kosong besar (~136px) sebelum blok ini
-   dimulai -- di dokumen Word aslinya ini berupa beberapa baris kosong
-   sebelum "Surabaya, ...". Sebelumnya cuma 40px, membuat blok tanda
-   tangan tampak terlalu naik dibanding dokumen resmi. */
+/* Blok tanda tangan, rata kanan seperti dokumen resmi */
 .pdf-ba-sign-wrap {
   display: flex;
   justify-content: flex-end;
-  margin-top: 136px;
+  margin-top: 40px;
 }
 
 .pdf-ba-sign-block {
@@ -96,30 +94,9 @@
   font-weight: 400;
 }
 
-/* ===== Form: pilihan telah/belum dkk. sebagai tombol pilihan sederhana ===== */
-
-.ba-choice-group {
-  display: inline-flex;
-  border: 1px solid #ccc;
-  border-radius: 6px;
-  overflow: hidden;
-  margin: 0 4px;
-}
-
-.ba-choice-btn {
-  border: none;
-  background: #fff;
-  color: #333;
-  padding: 4px 10px;
-  font-size: 12px;
-  cursor: pointer;
-}
-
-.ba-choice-btn.active {
-  background: #e30613;
-  color: #fff;
-  font-weight: 600;
-}
+/* Dulu di sini ada .ba-choice-group/.ba-choice-btn untuk tombol pilih
+   telah/belum dkk di form. Sudah tidak dipakai lagi karena pilihannya
+   dipatenkan (lihat BeritaAcaraForm.tsx: FIXED_CHOICE_1/2A/2B). */
 
 .ba-signature-preview {
   max-width: 220px;

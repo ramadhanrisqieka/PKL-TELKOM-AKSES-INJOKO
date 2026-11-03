@@ -11,7 +11,7 @@ interface MainLayoutProps {
 interface SubMenu {
   id: string;
   label: string;
-  mode: 'cover' | 'daftar-isi' | 'berita-acara' | 'boq' | 'single' | `evidence${number}` | 'opm' | 'mancore' | 'kml' | 'compress'; // dibaca oleh halaman lewat ?mode=...
+  mode: 'cover' | 'daftar-isi' | 'berita-acara' | 'boq' | `evidence${number}` | 'opm' | 'mancore' | 'kml' | 'compress'; // dibaca oleh halaman lewat ?mode=...
   href: string;
 }
 
@@ -57,7 +57,6 @@ const menus: MenuItem[] = [
       // hanya saja TANPA blok tanda tangan (lihat catatan di KmlPage.tsx).
       // Lihat KmlForm.tsx / KmlPage.tsx, dirutekan dari Lact.tsx (mode 'kml').
       { id: 'lact-kml', label: 'Lampiran KML', mode: 'kml', href: '/lact?mode=kml' },
-      { id: 'lact-single', label: 'Upload Satu per Satu', mode: 'single', href: '/lact?mode=single' },
       { id: 'lact-compress', label: 'Kompres Foto', mode: 'compress', href: '/lact?mode=compress' },
     ],
   },
@@ -82,7 +81,6 @@ const menus: MenuItem[] = [
       { id: 'baut-mancore', label: 'Lampiran Mancore', mode: 'mancore', href: '/baut?mode=mancore' },
       // Sama seperti di Tools LACT: halaman tersendiri, lihat KmlForm.tsx.
       { id: 'baut-kml', label: 'Lampiran KML', mode: 'kml', href: '/baut?mode=kml' },
-      { id: 'baut-single', label: 'Upload Satu per Satu', mode: 'single', href: '/baut?mode=single' },
       { id: 'baut-compress', label: 'Kompres Foto', mode: 'compress', href: '/baut?mode=compress' },
     ],
   },
@@ -91,7 +89,7 @@ const menus: MenuItem[] = [
 export default function MainLayout({ children, pageTitle, activeMenu }: MainLayoutProps) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const currentMode = searchParams.get('mode') ?? 'single';
+  const currentMode = searchParams.get('mode') ?? 'evidence1';
   const current = menus.find((m) => m.id === activeMenu);
 
   // Dropdown yang terbuka: otomatis membuka menu dari halaman yang sedang aktif
