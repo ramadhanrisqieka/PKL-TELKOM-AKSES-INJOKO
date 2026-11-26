@@ -51,8 +51,20 @@ const isBulkLikeMode = (m: string): m is BulkLikeMode =>
 
 const MODE_TITLES: Record<string, string> = {
   compress: 'Kompres Foto',
-  ...Object.fromEntries(EVIDENCE_SLOTS.map((slot, i) => [slot, `Lampiran Evidence ${i + 1}`])),
+  ...Object.fromEntries(
+    EVIDENCE_SLOTS.map((slot, i) => [
+      slot,
+      i === 0
+        ? 'Lampiran Evidence Pekerjaan'
+        : i === 1
+        ? 'Lampiran Evidence Hasil Ukur OPM'
+        : `Lampiran Evidence ${i + 1}`,
+    ])
+  ),
 };
+
+const defaultHeadingForSlot = (slot: BulkLikeMode) =>
+  slot === 'evidence2' ? 'LAMPIRAN EVIDENCE HASIL UKUR OPM' : 'LAMPIRAN EVIDENT PEKERJAAN';
 
 const emptyProject: ProjectData = {
   proyek: '',
@@ -92,7 +104,22 @@ export default function EvidenceForm({
     : EVIDENCE_SLOTS[0];
 
   const [project, setProject] = useSharedProject(emptyProject);
-  const [docHeading, setDocHeading] = useState('LAMPIRAN EVIDENT PEKERJAAN');
+  const [docHeadingByMode, setDocHeadingByMode] = useState<Record<BulkLikeMode, string>>(
+    () =>
+      Object.fromEntries(
+        BULK_LIKE_MODES.map((slot) => [slot, defaultHeadingForSlot(slot)])
+      ) as Record<BulkLikeMode, string>
+  );
+
+  const docHeading = isBulkLikeMode(uploadMode)
+    ? docHeadingByMode[uploadMode]
+    : 'LAMPIRAN EVIDENT PEKERJAAN';
+
+  const setDocHeading = (value: string) => {
+    if (isBulkLikeMode(uploadMode)) {
+      setDocHeadingByMode((prev) => ({ ...prev, [uploadMode]: value }));
+    }
+  };
 
   // Keranjang TERPISAH untuk Lampiran Evidence 1-12
   // (ganti mode tidak saling menghapus isian satu sama lain)
@@ -327,6 +354,7 @@ export default function EvidenceForm({
             project={project}
             items={activeItems}
             options={exportOpts}
+            featuredFirst={uploadMode === 'evidence2'}
           />
         </div>
       </MainLayout>
@@ -467,7 +495,9 @@ export default function EvidenceForm({
               <div className="evidence-bulk-list">
                 {activeItems.map((item, index) => (
                   <div key={item.id} className="evidence-section-card evidence-bulk-card">
-                    <span className="evidence-bulk-number">{index + 1}</span>
+                    <span className="evidence-bulk-number">
+                      {uploadMode === 'evidence2' && index === 0 ? 'ODC' : index + 1}
+                    </span>
                     <button
                       type="button"
                       className="evidence-remove-btn"
@@ -480,7 +510,11 @@ export default function EvidenceForm({
                     <input
                       type="text"
                       className="evidence-label-input"
-                      placeholder="Ketik keterangan"
+                      placeholder={
+                        uploadMode === 'evidence2' && index === 0
+                          ? 'Contoh: P.IN ODC : 00.57 dBm'
+                          : 'Ketik keterangan'
+                      }
                       value={item.label}
                       onChange={(e) => handleLabelChange(item.id, e.target.value)}
                     />

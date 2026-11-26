@@ -42,6 +42,19 @@ export default function BuatBaut() {
     );
   }
 
+  if (mode === 'abd') {
+    return (
+      <PdfImportForm
+        key="abd"
+        docTitle="BAUT"
+        pageTitle="Buat BAUT — ABD"
+        activeMenu="baut-builder"
+        sectionLabel="ABD"
+        fileTag="ABD"
+      />
+    );
+  }
+
   if (mode === 'ba-abd') {
     return (
       <PdfImportForm

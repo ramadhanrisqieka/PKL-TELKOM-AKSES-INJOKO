@@ -6,6 +6,7 @@ import BeritaAcaraForm from '../components/BeritaAcaraForm';
 import OtdrForm from '../components/OtdrForm';
 import KmlForm from '../components/KmlForm';
 import ExcelDocForm from '../components/ExcelDocForm';
+import PdfImportForm from '../components/PdfImportForm';
 
 export default function Lact() {
   const [searchParams] = useSearchParams();
@@ -118,6 +119,19 @@ export default function Lact() {
         pageTitle="Buat LACT — Lampiran KML"
         activeMenu="lact-builder"
         defaultDocHeading="LAMPIRAN KML"
+      />
+    );
+  }
+
+  if (mode === 'abd') {
+    return (
+      <PdfImportForm
+        key="abd"
+        docTitle="LACT"
+        pageTitle="Buat LACT — ABD"
+        activeMenu="lact-builder"
+        sectionLabel="ABD"
+        fileTag="ABD"
       />
     );
   }

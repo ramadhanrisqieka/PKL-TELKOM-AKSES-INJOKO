@@ -14,7 +14,7 @@ interface MainLayoutProps {
 interface SubMenu {
   id: string;
   label: string;
-  mode: 'cover' | 'daftar-isi' | 'berita-acara' | 'boq' | `evidence${number}` | 'opm' | 'otdr' | 'mancore' | 'kml' | 'nde' | 'ba-tambah-kurang' | 'ba-abd'; // dibaca oleh halaman lewat ?mode=...
+  mode: 'cover' | 'daftar-isi' | 'berita-acara' | 'boq' | `evidence${number}` | 'opm' | 'otdr' | 'mancore' | 'kml' | 'abd' | 'nde' | 'ba-tambah-kurang' | 'ba-abd';
   href: string;
 }
 
@@ -22,11 +22,30 @@ interface MenuItem {
   id: string;
   label: string;
   icon: string;
-  href?: string;         // menu biasa
-  children?: SubMenu[];  // menu dropdown
+  href?: string;
+  children?: SubMenu[];
 }
 
 const asset = (p: string) => `${import.meta.env.BASE_URL}${p}`;
+
+const makeEvidenceMenus = (prefix: 'lact' | 'baut'): SubMenu[] =>
+  Array.from({ length: 12 }, (_, i) => {
+    const num = i + 1;
+    const label =
+      num === 1
+        ? 'Lampiran Evidence Pekerjaan'
+        : num === 2
+        ? 'Lampiran Evidence Hasil Ukur OPM'
+        : `Lampiran Evidence ${num}`;
+    return {
+      id: `${prefix}-evidence-${num}`,
+      label,
+      mode: `evidence${num}` as SubMenu['mode'],
+      href: `/${prefix}?mode=evidence${num}`,
+    };
+  });
+
+const isExtraEvidenceMode = (mode: string) => /^evidence([3-9]|1[0-2])$/.test(mode);
 
 const menus: MenuItem[] = [
   { id: 'welcome', label: 'Welcome', href: '/welcome', icon: 'images/mdi-home-variant1.svg' },
@@ -39,16 +58,12 @@ const menus: MenuItem[] = [
       { id: 'lact-daftar-isi', label: 'Daftar Isi', mode: 'daftar-isi', href: '/lact?mode=daftar-isi' },
       { id: 'lact-berita-acara', label: 'Laporan Commisioning Test', mode: 'berita-acara', href: '/lact?mode=berita-acara' },
       { id: 'lact-boq', label: 'BOQ', mode: 'boq', href: '/lact?mode=boq' },
-      ...Array.from({ length: 12 }, (_, i) => ({
-        id: `lact-evidence-${i + 1}`,
-        label: `Lampiran Evidence ${i + 1}`,
-        mode: `evidence${i + 1}` as SubMenu['mode'],
-        href: `/lact?mode=evidence${i + 1}`,
-      })),
+      ...makeEvidenceMenus('lact'),
       { id: 'lact-opm', label: 'Data Pengukuran OPM', mode: 'opm', href: '/lact?mode=opm' },
       { id: 'lact-otdr', label: 'Import OTDR', mode: 'otdr', href: '/lact?mode=otdr' },
       { id: 'lact-mancore', label: 'Lampiran Mancore', mode: 'mancore', href: '/lact?mode=mancore' },
       { id: 'lact-kml', label: 'Lampiran KML', mode: 'kml', href: '/lact?mode=kml' },
+      { id: 'lact-abd', label: 'ABD', mode: 'abd', href: '/lact?mode=abd' },
     ],
   },
   {
@@ -62,16 +77,12 @@ const menus: MenuItem[] = [
       { id: 'baut-berita-acara', label: 'Berita Acara Uji Terima', mode: 'berita-acara', href: '/baut?mode=berita-acara' },
       { id: 'baut-boq', label: 'BOQ', mode: 'boq', href: '/baut?mode=boq' },
       { id: 'baut-ba-tambah-kurang', label: 'BA Tambah Kurang', mode: 'ba-tambah-kurang', href: '/baut?mode=ba-tambah-kurang' },
-      ...Array.from({ length: 12 }, (_, i) => ({
-        id: `baut-evidence-${i + 1}`,
-        label: `Lampiran Evidence ${i + 1}`,
-        mode: `evidence${i + 1}` as SubMenu['mode'],
-        href: `/baut?mode=evidence${i + 1}`,
-      })),
+      ...makeEvidenceMenus('baut'),
       { id: 'baut-opm', label: 'Data Pengukuran OPM', mode: 'opm', href: '/baut?mode=opm' },
       { id: 'baut-otdr', label: 'Import OTDR', mode: 'otdr', href: '/baut?mode=otdr' },
       { id: 'baut-mancore', label: 'Lampiran Mancore', mode: 'mancore', href: '/baut?mode=mancore' },
       { id: 'baut-kml', label: 'Lampiran KML', mode: 'kml', href: '/baut?mode=kml' },
+      { id: 'baut-abd', label: 'ABD', mode: 'abd', href: '/baut?mode=abd' },
       { id: 'baut-ba-abd', label: 'BA ABD', mode: 'ba-abd', href: '/baut?mode=ba-abd' },
     ],
   },
@@ -124,6 +135,14 @@ export default function MainLayout({ children, pageTitle, activeMenu }: MainLayo
   useEffect(() => {
     setOpenId(activeMenu);
   }, [activeMenu]);
+
+  // Dropdown khusus untuk Lampiran Evidence 3–12
+  const [extraEvidenceOpen, setExtraEvidenceOpen] = useState<Record<string, boolean>>({});
+  useEffect(() => {
+    if (isExtraEvidenceMode(currentMode)) {
+      setExtraEvidenceOpen((prev) => ({ ...prev, [activeMenu]: true }));
+    }
+  }, [activeMenu, currentMode]);
 
   return (
     <div className="layout-wrapper">
@@ -208,6 +227,67 @@ export default function MainLayout({ children, pageTitle, activeMenu }: MainLayo
 
                   <div className={`sub-menu-container ${isOpen ? 'open' : ''}`}>
                     {m.children.map((c) => {
+                      if (isExtraEvidenceMode(c.mode) && c.mode !== 'evidence3') {
+                        return null;
+                      }
+
+                      if (c.mode === 'evidence3') {
+                        const extraItems = m.children!.filter((item) => isExtraEvidenceMode(item.mode));
+                        const isExtraOpen = !!extraEvidenceOpen[m.id];
+                        const hasSavedExtra = extraItems.some((item) => isSectionSaved(m.id, item.mode));
+
+                        return (
+                          <div key={`${m.id}-extra-evidence`}>
+                            <div
+                              className="sub-menu-item"
+                              style={{ fontWeight: 600, opacity: 0.85 }}
+                              onClick={() =>
+                                setExtraEvidenceOpen((prev) => ({
+                                  ...prev,
+                                  [m.id]: !prev[m.id],
+                                }))
+                              }
+                            >
+                              <span>Lampiran Tambahan</span>
+                              {hasSavedExtra && (
+                                <span
+                                  className="sub-menu-saved"
+                                  title="Ada lampiran tambahan yang tersimpan"
+                                />
+                              )}
+                              <span className={`nav-chevron ${isExtraOpen ? 'open' : ''}`}>▾</span>
+                            </div>
+
+                            {isExtraOpen && (
+                              <div style={{ paddingLeft: 12 }}>
+                                {extraItems.map((extra) => {
+                                  const subActive = isParentActive && currentMode === extra.mode;
+                                  return (
+                                    <div
+                                      key={extra.id}
+                                      className={`sub-menu-item ${subActive ? 'active' : ''}`}
+                                      onClick={() => {
+                                        navigate(extra.href);
+                                        setMobileMenuOpen(false);
+                                      }}
+                                    >
+                                      {extra.label}
+                                      {isSectionSaved(m.id, extra.mode) && (
+                                        <span
+                                          className="sub-menu-saved"
+                                          title="Sudah tersimpan di Paket PDF"
+                                          aria-label="Sudah tersimpan di Paket PDF"
+                                        />
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      }
+
                       const subActive = isParentActive && currentMode === c.mode;
                       return (
                         <div

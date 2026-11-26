@@ -710,3 +710,15 @@
   font-weight: 400;          /* label tidak tebal, sama seperti dokumen resmi */
   width: 150px;              /* titik dua sejajar di satu kolom */
 }
+
+/* ===== Slot 1 ODC khusus Lampiran Evidence Hasil Ukur OPM ===== */
+.pdf-photo-caption-bold {
+  font-weight: 700;
+}
+
+.evidence-bulk-number {
+  min-width: 20px;
+  width: auto;
+  padding: 0 5px;
+  border-radius: 999px;
+}
