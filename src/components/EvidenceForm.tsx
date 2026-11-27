@@ -11,6 +11,7 @@ import ExportOptionsPanel, {
 import PhotoCompressor from './PhotoCompressor';
 import { compressImage, formatBytes, MAX_ORIGINAL_BYTES, MAX_ORIGINAL_MB } from '../utils/imageCompress';
 import { generatePdfFromElement } from '../utils/pdfFromElement';
+import { focusAndShake, showToast } from '../utils/uiFeedback';
 import type { ProjectData, EvidenceItem } from '../types/evidence';
 import '../assets/style_Evidence.css';
 import { useSharedProject } from '../utils/projectStore';
@@ -38,12 +39,6 @@ const isEvidenceSlot = (m: string): m is EvidenceSlot =>
 
 // Kalau nanti mau nambah fitur serupa lagi (upload sekaligus dengan keranjang
 // terpisah), tinggal tambahkan nama modenya di BULK_LIKE_MODES di bawah.
-// CATATAN: "Data Pengukuran OPM" TIDAK lagi di sini — dulu sempat dititipkan
-// sebagai salah satu BulkLikeMode (jadi cuma galeri foto generik, tanpa kop/
-// tabel info proyek/blok tanda tangan yang benar). Sekarang "Data Pengukuran
-// OPM" punya halaman & form sendiri: lihat OpmForm.tsx / OpmPage.tsx /
-// style_Opm.css, dirutekan langsung dari Lact.tsx & BuatBaut.tsx (mode
-// 'opm'), persis seperti pola BoqForm/BoqPage.
 type BulkLikeMode = EvidenceSlot;
 const BULK_LIKE_MODES: BulkLikeMode[] = [...EVIDENCE_SLOTS];
 const isBulkLikeMode = (m: string): m is BulkLikeMode =>
@@ -195,16 +190,13 @@ export default function EvidenceForm({
   };
 
   // ---------- Mode: Lampiran Evidence 1-12 ----------
-  // Semua fungsi di bawah ini generik: otomatis mengoperasikan keranjang slot
-  // yang SEDANG AKTIF (evidence1 sampai evidence12) lewat
-  // setActiveItems, jadi tidak ada data yang tercampur antar slot.
   const handleBulkFiles = async (fileList: File[]) => {
     if (!isBulkLikeMode(uploadMode)) return;
     if (bulkProgress) return; // sedang memproses
 
     const images = fileList.filter((f) => f.type.startsWith('image/'));
     if (images.length === 0) {
-      alert('Pilih file gambar (JPG atau PNG).');
+      showToast('Pilih file gambar (JPG atau PNG).', 'error');
       return;
     }
 
@@ -233,8 +225,12 @@ export default function EvidenceForm({
       setActiveItems((prev) => [...prev, ...added]);
       setBulkProgress(null);
 
+      if (added.length > 0) {
+        showToast(`${added.length} foto berhasil ditambahkan.`, 'success');
+      }
+
       if (failed > 0) {
-        alert(`${failed} foto gagal diproses dan dilewati.`);
+        showToast(`${failed} foto gagal diproses dan dilewati.`, 'error');
       }
     }
 
@@ -260,8 +256,6 @@ export default function EvidenceForm({
   };
 
   // ---------- Mode: Kompres Foto ----------
-  // Hasil kompres dikembalikan ke slot/mode ASAL (dicatat di compressReturnMode):
-  // yaitu salah satu Lampiran Evidence 1-12.
   const handleUseCompressed = async (files: File[]) => {
     const added: EvidenceItem[] = [];
     for (const file of files) {
@@ -275,6 +269,10 @@ export default function EvidenceForm({
 
     setSlotItems(compressReturnMode, (prev) => [...prev, ...added]);
 
+    if (added.length > 0) {
+      showToast(`${added.length} foto hasil kompres ditambahkan.`, 'success');
+    }
+
     setPendingCompress([]);
     setSearchParams({ mode: compressReturnMode });
   };
@@ -282,23 +280,39 @@ export default function EvidenceForm({
   // ---------- Preview & unduh ----------
   const handlePreview = () => {
     if (docHeading.trim() === '') {
-      alert('Mohon isi judul dokumen terlebih dahulu.');
+      showToast('Mohon isi judul dokumen terlebih dahulu.', 'error');
+      focusAndShake(document.getElementById('doc-heading-input'));
       return;
     }
+
     const projectBelumLengkap = Object.values(project).some((v) => v.trim() === '');
     if (projectBelumLengkap) {
-      alert('Mohon lengkapi semua data proyek terlebih dahulu.');
+      showToast('Mohon lengkapi semua data proyek terlebih dahulu.', 'error');
+      const emptyField = Array.from(
+        document.querySelectorAll<HTMLInputElement | HTMLSelectElement>(
+          '.evidence-form-fields input, .evidence-form-fields select'
+        )
+      ).find((el) => el.value.trim() === '');
+      focusAndShake(emptyField ?? null);
       return;
     }
+
     if (activeItems.length === 0) {
-      alert('Tambahkan minimal 1 evidence foto terlebih dahulu.');
+      showToast('Tambahkan minimal 1 evidence foto terlebih dahulu.', 'error');
+      focusAndShake(document.querySelector<HTMLElement>('.evidence-bulk-dropzone'));
       return;
     }
+
     const adaLabelKosong = activeItems.some((it) => it.label.trim() === '');
     if (adaLabelKosong) {
-      alert('Mohon isi keterangan untuk setiap foto evidence.');
+      showToast('Mohon isi keterangan untuk setiap foto evidence.', 'error');
+      const emptyLabel = Array.from(
+        document.querySelectorAll<HTMLInputElement>('.evidence-label-input')
+      ).find((el) => el.value.trim() === '');
+      focusAndShake(emptyLabel ?? null);
       return;
     }
+
     setMode('preview');
   };
 
@@ -322,9 +336,10 @@ export default function EvidenceForm({
         (done, total) => setExportStatus(`Memproses foto ${done} dari ${total}...`),
         QUALITY_PRESETS[exportOpts.quality]
       );
+      showToast(`PDF ${docTitle} berhasil diunduh.`, 'success');
     } catch (err) {
       console.error(err);
-      alert('Gagal membuat PDF, coba lagi.');
+      showToast('Gagal membuat PDF, coba lagi.', 'error');
     } finally {
       setIsProcessing(false);
       setExportStatus('');

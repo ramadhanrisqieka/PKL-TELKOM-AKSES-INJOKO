@@ -9,6 +9,7 @@ import { QUALITY_PRESETS, buildPdfFileName } from './ExportOptions';
 import { compressImage, formatBytes, MAX_ORIGINAL_BYTES, MAX_ORIGINAL_MB } from '../utils/imageCompress';
 import { generatePdfFromElement } from '../utils/pdfFromElement';
 import { isPdfFile, isSorFile, renderPdfToImages } from '../utils/pdfImport';
+import { focusAndShake, showToast } from '../utils/uiFeedback';
 import type { ProjectData } from '../types/evidence';
 import '../assets/style_Otdr.css';
 import { useSharedProject } from '../utils/projectStore';
@@ -42,7 +43,6 @@ interface OtdrItem {
   file?: File;
 }
 
-/** Batas halaman yang diimpor sekaligus, supaya browser tidak kehabisan memori. */
 const MAX_PAGES = 60;
 
 let idCounter = 0;
@@ -86,7 +86,7 @@ export default function OtdrForm({
 
     const usable = fileList.filter((f) => !isSorFile(f) && (isPdfFile(f) || f.type.startsWith('image/'))).sort(byName);
     if (usable.length === 0) {
-      if (sor.length === 0) alert('Pilih file PDF atau gambar hasil ekspor aplikasi OTDR.');
+      if (sor.length === 0) showToast('Pilih file PDF atau gambar hasil ekspor aplikasi OTDR.', 'error');
       return;
     }
 
@@ -130,7 +130,10 @@ export default function OtdrForm({
       accepted = added.slice(0, Math.max(0, room));
       problems.push(`Hanya ${MAX_PAGES} halaman yang bisa diimpor sekaligus; ${added.length - accepted.length} halaman dilewati`);
     }
-    if (accepted.length > 0) setItems((prev) => [...prev, ...accepted]);
+    if (accepted.length > 0) {
+      setItems((prev) => [...prev, ...accepted]);
+      showToast(`${accepted.length} halaman OTDR berhasil diimpor.`, 'success');
+    }
     if (problems.length > 0) alert(`Sebagian file dilewati:\n\n${problems.map((p) => `• ${p}`).join('\n')}`);
   };
 
@@ -152,16 +155,24 @@ export default function OtdrForm({
 
   const handlePreview = () => {
     if (titleLine1.trim() === '') {
-      alert('Mohon isi judul dokumen terlebih dahulu.');
+      showToast('Mohon isi judul dokumen terlebih dahulu.', 'error');
+      focusAndShake(document.getElementById('otdr-title'));
       return;
     }
     const projectBelumLengkap = Object.values(project).some((v) => v.trim() === '');
     if (projectBelumLengkap) {
-      alert('Mohon lengkapi semua data proyek terlebih dahulu.');
+      showToast('Mohon lengkapi semua data proyek terlebih dahulu.', 'error');
+      const emptyField = Array.from(
+        document.querySelectorAll<HTMLInputElement | HTMLSelectElement>(
+          '#otdr-project-fields input, #otdr-project-fields select'
+        )
+      ).find((el) => el.value.trim() === '');
+      focusAndShake(emptyField ?? null);
       return;
     }
     if (items.length === 0) {
-      alert('Mohon impor hasil OTDR terlebih dahulu (PDF atau gambar dari aplikasi OTDR).');
+      showToast('Mohon impor hasil OTDR terlebih dahulu (PDF atau gambar dari aplikasi OTDR).', 'error');
+      focusAndShake(document.querySelector<HTMLElement>('.otdr-upload-box'));
       return;
     }
     setMode('preview');
@@ -171,7 +182,6 @@ export default function OtdrForm({
     setIsProcessing(true);
     try {
       const safeName = (project.lokasi || project.proyek || 'dokumen').trim().replace(/\s+/g, '_');
-      // Untuk gambar, foto ASLI dipakai saat export; halaman PDF sudah dirender tajam saat diimpor
       const originals: Record<string, Blob> = {};
       items.forEach((it) => {
         if (it.file) originals[`otdr-image-${it.id}`] = it.file;
@@ -183,9 +193,10 @@ export default function OtdrForm({
         undefined,
         QUALITY_PRESETS[exportOpts.quality]
       );
+      showToast(`OTDR ${docTitle} berhasil diunduh.`, 'success');
     } catch (err) {
       console.error(err);
-      alert('Gagal membuat PDF, coba lagi.');
+      showToast('Gagal membuat PDF, coba lagi.', 'error');
     } finally {
       setIsProcessing(false);
     }
@@ -235,6 +246,7 @@ export default function OtdrForm({
           <label>
             Judul Dokumen
             <input
+              id="otdr-title"
               type="text"
               value={titleLine1}
               onChange={(e) => setTitleLine1(e.target.value)}
@@ -243,7 +255,7 @@ export default function OtdrForm({
           </label>
         </div>
 
-        <div className="evidence-form-fields">
+        <div id="otdr-project-fields" className="evidence-form-fields">
           <label>
             Proyek
             <input

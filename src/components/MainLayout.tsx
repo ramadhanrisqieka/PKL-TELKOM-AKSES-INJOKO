@@ -1,9 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import BundleBar from './BundleBar';
+import ToastContainer from './ToastContainer';
 import { isSectionSaved, useBundleVersion } from '../utils/pdfBundle';
 import '../assets/MainLayout.css';
 import '../assets/style_Bundle.css';
+import '../assets/dark-mode.css';
+import '../assets/micro-interactions.css';
 
 interface MainLayoutProps {
   children: React.ReactNode;
@@ -107,6 +110,20 @@ export default function MainLayout({ children, pageTitle, activeMenu }: MainLayo
   // State drawer sidebar khusus tampilan mobile/Android
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
+  // Tema awal selalu 'light' kecuali pengguna pernah memilih 'dark'
+  const [theme, setTheme] = useState<'light' | 'dark'>(() =>
+    localStorage.getItem('verita-theme') === 'dark' ? 'dark' : 'light'
+  );
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('verita-theme', theme);
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme((prev) => (prev === 'light' ? 'dark' : 'light'));
+  };
+
   const handleMainScroll = () => {
     const el = mainRef.current;
     if (!el) return;
@@ -159,6 +176,21 @@ export default function MainLayout({ children, pageTitle, activeMenu }: MainLayo
           <img src={asset('images/logo-TA.svg')} alt="Telkom Akses" className="header-logo" />
         </div>
         <div className="header-status-area">
+          <button
+            type="button"
+            className="theme-switch-btn"
+            onClick={toggleTheme}
+            title={theme === 'dark' ? 'Beralih ke Mode Terang' : 'Beralih ke Mode Gelap'}
+            aria-label={theme === 'dark' ? 'Beralih ke Mode Terang' : 'Beralih ke Mode Gelap'}
+          >
+            <span key={theme} className="theme-switch-icon" aria-hidden="true">
+              {theme === 'dark' ? '☀️' : '🌙'}
+            </span>
+            <span className="theme-switch-label">
+              {theme === 'dark' ? 'Terang' : 'Gelap'}
+            </span>
+          </button>
+
           <div
             className="verita-header-brand"
             onClick={() => navigate('/welcome')}
@@ -362,6 +394,7 @@ export default function MainLayout({ children, pageTitle, activeMenu }: MainLayo
         <div className="footer-center"></div>
         <div className="footer-right"></div>
       </footer>
+      <ToastContainer />
     </div>
   );
 }

@@ -1,0 +1,257 @@
+/* =========================================================
+   1. TOAST NOTIFICATION (Pojok Kanan Bawah)
+   ========================================================= */
+.ui-toast-stack {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 360px;
+  pointer-events: none;
+}
+
+.ui-toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 14px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.96);
+  color: #18181b;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.14);
+  backdrop-filter: blur(10px);
+  font-size: 13px;
+  line-height: 1.4;
+  animation: ui-toast-in 0.22s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.ui-toast-badge {
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.ui-toast-success .ui-toast-badge {
+  background: rgba(16, 185, 129, 0.15);
+  color: #059669;
+}
+
+.ui-toast-error .ui-toast-badge {
+  background: rgba(227, 6, 19, 0.14);
+  color: #e30613;
+}
+
+.ui-toast-info .ui-toast-badge {
+  background: rgba(59, 130, 246, 0.14);
+  color: #2563eb;
+}
+
+.ui-toast-msg {
+  flex: 1;
+  font-weight: 500;
+}
+
+.ui-toast-close {
+  border: none;
+  background: transparent;
+  color: #71717a;
+  font-size: 16px;
+  line-height: 1;
+  padding: 2px 4px;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.ui-toast-close:hover {
+  color: #18181b;
+  background: rgba(0, 0, 0, 0.06);
+}
+
+/* Dark mode Linear untuk Toast */
+[data-theme="dark"] .ui-toast {
+  background: rgba(20, 21, 25, 0.94);
+  color: #f3f4f6;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 14px 32px rgba(0, 0, 0, 0.6);
+}
+
+[data-theme="dark"] .ui-toast-success .ui-toast-badge {
+  background: rgba(16, 185, 129, 0.2);
+  color: #34d399;
+}
+
+[data-theme="dark"] .ui-toast-error .ui-toast-badge {
+  background: rgba(227, 6, 19, 0.22);
+  color: #ff6b72;
+}
+
+[data-theme="dark"] .ui-toast-info .ui-toast-badge {
+  background: rgba(96, 165, 250, 0.2);
+  color: #60a5fa;
+}
+
+[data-theme="dark"] .ui-toast-close:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+@media (max-width: 640px) {
+  .ui-toast-stack {
+    left: 14px;
+    right: 14px;
+    bottom: 14px;
+    max-width: none;
+  }
+}
+
+/* =========================================================
+   2. SMART SCROLL & SHAKE PADA INPUT KOSONG
+   ========================================================= */
+.ui-shake-error {
+  animation: ui-shake 0.34s cubic-bezier(0.36, 0.07, 0.19, 0.97) both !important;
+  border-color: #e30613 !important;
+  box-shadow: 0 0 0 3px rgba(227, 6, 19, 0.22) !important;
+}
+
+/* =========================================================
+   3. TACTILE PRESS & ROTASI IKON SWITCH TEMA
+   ========================================================= */
+.evidence-submit-btn,
+.evidence-btn-secondary,
+.bundle-btn,
+.theme-switch-btn,
+.evidence-bulk-move,
+.pdfimp-thumb-btn,
+.lw-btn-primary,
+.lw-btn-secondary {
+  transition: transform 0.12s cubic-bezier(0.22, 1, 0.36, 1),
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    filter 0.15s ease;
+}
+
+.evidence-submit-btn:active:not(:disabled),
+.evidence-btn-secondary:active:not(:disabled),
+.bundle-btn:active:not(:disabled),
+.theme-switch-btn:active:not(:disabled),
+.evidence-bulk-move:active:not(:disabled),
+.pdfimp-thumb-btn:active:not(:disabled),
+.lw-btn-primary:active:not(:disabled),
+.lw-btn-secondary:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.theme-switch-icon {
+  display: inline-block;
+  animation: ui-theme-spin 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* =========================================================
+   4. DROPZONE LEBIH HIDUP & FADE-UP THUMBNAIL
+   ========================================================= */
+.evidence-bulk-icon,
+.evidence-upload-icon {
+  display: inline-block;
+  transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.evidence-bulk-dropzone.dragging,
+.pdfimp-upload-box.dragging {
+  box-shadow: 0 0 0 4px rgba(227, 6, 19, 0.14);
+}
+
+.evidence-bulk-dropzone.dragging .evidence-bulk-icon,
+.pdfimp-upload-box.dragging .evidence-upload-icon {
+  transform: translateY(-4px) scale(1.1);
+}
+
+.evidence-bulk-card,
+.pdfimp-thumb {
+  animation: ui-fade-up 0.2s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* =========================================================
+   5. POP-IN INDIKATOR TERSIMPAN DI SIDEBAR
+   ========================================================= */
+.sub-menu-saved {
+  animation: ui-pop-in 0.28s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+/* =========================================================
+   KEYFRAMES & REDUCED MOTION
+   ========================================================= */
+@keyframes ui-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes ui-shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-6px); }
+  40% { transform: translateX(6px); }
+  60% { transform: translateX(-4px); }
+  80% { transform: translateX(4px); }
+}
+
+@keyframes ui-theme-spin {
+  from {
+    opacity: 0;
+    transform: rotate(-45deg) scale(0.7);
+  }
+  to {
+    opacity: 1;
+    transform: rotate(0deg) scale(1);
+  }
+}
+
+@keyframes ui-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes ui-pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-toast,
+  .ui-shake-error,
+  .theme-switch-icon,
+  .evidence-bulk-card,
+  .pdfimp-thumb,
+  .sub-menu-saved {
+    animation: none !important;
+    transition: none !important;
+  }
+}

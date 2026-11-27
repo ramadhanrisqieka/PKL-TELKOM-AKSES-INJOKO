@@ -7,6 +7,7 @@ import SimpleExportOptionsPanel, {
 } from './SimpleExportOptions';
 import { QUALITY_PRESETS, buildPdfFileName } from './ExportOptions';
 import { generatePdfFromElement } from '../utils/pdfFromElement';
+import { focusAndShake, showToast } from '../utils/uiFeedback';
 import '../assets/style_DaftarIsi.css';
 
 interface DaftarIsiFormProps {
@@ -70,16 +71,32 @@ export default function DaftarIsiForm({
   };
 
   const handlePreview = () => {
-    if (titleLine1.trim() === '' || titleLine2.trim() === '' || titleLine3.trim() === '') {
-      alert('Mohon isi judul dokumen (baris 1, 2, dan 3).');
+    if (titleLine1.trim() === '') {
+      showToast('Mohon isi judul dokumen (baris 1, 2, dan 3).', 'error');
+      focusAndShake(document.getElementById('toc-title-1'));
+      return;
+    }
+    if (titleLine2.trim() === '') {
+      showToast('Mohon isi judul dokumen (baris 1, 2, dan 3).', 'error');
+      focusAndShake(document.getElementById('toc-title-2'));
+      return;
+    }
+    if (titleLine3.trim() === '') {
+      showToast('Mohon isi judul dokumen (baris 1, 2, dan 3).', 'error');
+      focusAndShake(document.getElementById('toc-title-3'));
       return;
     }
     if (items.length === 0) {
-      alert('Tambahkan minimal 1 poin daftar isi.');
+      showToast('Tambahkan minimal 1 poin daftar isi.', 'error');
+      focusAndShake(document.querySelector<HTMLElement>('.evidence-add-card'));
       return;
     }
     if (items.some((it) => it.text.trim() === '')) {
-      alert('Mohon isi semua poin daftar isi (atau hapus yang kosong).');
+      showToast('Mohon isi semua poin daftar isi (atau hapus yang kosong).', 'error');
+      const emptyPoint = Array.from(
+        document.querySelectorAll<HTMLInputElement>('.evidence-label-input')
+      ).find((el) => el.value.trim() === '');
+      focusAndShake(emptyPoint ?? null);
       return;
     }
     setMode('preview');
@@ -95,9 +112,10 @@ export default function DaftarIsiForm({
         undefined,
         QUALITY_PRESETS[exportOpts.quality]
       );
+      showToast(`Daftar Isi ${docTitle} berhasil diunduh.`, 'success');
     } catch (err) {
       console.error(err);
-      alert('Gagal membuat PDF, coba lagi.');
+      showToast('Gagal membuat PDF, coba lagi.', 'error');
     } finally {
       setIsProcessing(false);
     }

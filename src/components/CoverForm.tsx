@@ -7,6 +7,7 @@ import SimpleExportOptionsPanel, {
 } from './SimpleExportOptions';
 import { QUALITY_PRESETS, buildPdfFileName } from './ExportOptions';
 import { generatePdfFromElement } from '../utils/pdfFromElement';
+import { focusAndShake, showToast } from '../utils/uiFeedback';
 import type { ProjectData } from '../types/evidence';
 import '../assets/style_Cover.css';
 import { useSharedProject } from '../utils/projectStore';
@@ -56,13 +57,25 @@ export default function CoverForm({
   };
 
   const handlePreview = () => {
-    const projectBelumLengkap = Object.values(project).some((v) => v.trim() === '');
-    if (projectBelumLengkap) {
-      alert('Mohon lengkapi semua data proyek terlebih dahulu.');
+    if (titleLine1.trim() === '') {
+      showToast('Mohon isi judul dokumen (baris 1 dan baris 2).', 'error');
+      focusAndShake(document.getElementById('cover-title-1'));
       return;
     }
-    if (titleLine1.trim() === '' || titleLine2.trim() === '') {
-      alert('Mohon isi judul dokumen (baris 1 dan baris 2).');
+    if (titleLine2.trim() === '') {
+      showToast('Mohon isi judul dokumen (baris 1 dan baris 2).', 'error');
+      focusAndShake(document.getElementById('cover-title-2'));
+      return;
+    }
+    const projectBelumLengkap = Object.values(project).some((v) => v.trim() === '');
+    if (projectBelumLengkap) {
+      showToast('Mohon lengkapi semua data proyek terlebih dahulu.', 'error');
+      const emptyField = Array.from(
+        document.querySelectorAll<HTMLInputElement | HTMLSelectElement>(
+          '#cover-project-fields input, #cover-project-fields select'
+        )
+      ).find((el) => el.value.trim() === '');
+      focusAndShake(emptyField ?? null);
       return;
     }
     setMode('preview');
@@ -79,9 +92,10 @@ export default function CoverForm({
         undefined,
         QUALITY_PRESETS[exportOpts.quality]
       );
+      showToast(`Cover ${docTitle} berhasil diunduh.`, 'success');
     } catch (err) {
       console.error(err);
-      alert('Gagal membuat PDF, coba lagi.');
+      showToast('Gagal membuat PDF, coba lagi.', 'error');
     } finally {
       setIsProcessing(false);
     }
@@ -141,7 +155,7 @@ export default function CoverForm({
           />
         </div>
 
-        <div className="evidence-form-fields">
+        <div id="cover-project-fields" className="evidence-form-fields">
           <label>
             Proyek
             <input

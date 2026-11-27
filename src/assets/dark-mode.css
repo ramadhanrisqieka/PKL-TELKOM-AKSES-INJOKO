@@ -1,0 +1,408 @@
+/* =========================================================
+   TOMBOL SWITCH TEMA (Tampil di Mode Terang & Gelap)
+   ========================================================= */
+.theme-switch-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid #d5d7db;
+  background: #ffffff;
+  color: #1c1c1c;
+  font-family: "Inter", sans-serif;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.theme-switch-btn:hover {
+  border-color: #ee1c25;
+  color: #ee1c25;
+}
+
+.theme-switch-icon {
+  font-size: 14px;
+  line-height: 1;
+}
+
+@media (max-width: 900px) {
+  .theme-switch-btn {
+    width: 36px;
+    padding: 0;
+    justify-content: center;
+  }
+
+  .theme-switch-label {
+    display: none;
+  }
+}
+
+/* =========================================================
+   LINEAR-STYLE DARK MODE (Aktif saat data-theme="dark")
+   ========================================================= */
+[data-theme="dark"] {
+  color-scheme: dark;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+
+  --ln-bg: #08090a;
+  --ln-surface: rgba(15, 16, 19, 0.88);
+  --ln-card: #141519;
+  --ln-card-hover: #191b20;
+  --ln-input: #0b0c0f;
+  --ln-border: rgba(255, 255, 255, 0.08);
+  --ln-border-strong: rgba(255, 255, 255, 0.14);
+  --ln-text: #f3f4f6;
+  --ln-muted: #8a8f98;
+
+  --ta-text: #f3f4f6;
+  --ta-grey-700: #141519;
+  --ta-grey-300: rgba(255, 255, 255, 0.1);
+  --ta-grey-100: #141519;
+  --ta-red-soft: rgba(227, 6, 19, 0.14);
+  --ta-glass: rgba(15, 16, 19, 0.86);
+  --ta-shadow: 0 12px 32px rgba(0, 0, 0, 0.55);
+}
+
+[data-theme="dark"] .theme-switch-btn {
+  background: var(--ln-card);
+  border-color: var(--ln-border-strong);
+  color: var(--ln-text);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+[data-theme="dark"] .theme-switch-btn:hover {
+  background: var(--ln-card-hover);
+  border-color: rgba(227, 6, 19, 0.5);
+  color: #ff6b72;
+}
+
+/* --- Layout Utama --- */
+[data-theme="dark"] .layout-wrapper {
+  background-color: var(--ln-bg);
+  color: var(--ln-text);
+}
+
+[data-theme="dark"] .layout-header {
+  background: rgba(11, 12, 15, 0.92);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--ln-border);
+  box-shadow: 0 1px 0 rgba(227, 6, 19, 0.45), 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+[data-theme="dark"] .header-logo {
+  background: transparent;
+  padding: 0;
+  border-radius: 0;
+  filter: brightness(1.18) drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4));
+}
+
+[data-theme="dark"] .verita-wordmark {
+  color: #f8fafc;
+  letter-spacing: -0.02em;
+}
+
+[data-theme="dark"] .verita-tagline {
+  color: var(--ln-muted);
+}
+
+[data-theme="dark"] .body-bg-map {
+  filter: invert(1) grayscale(1);
+  opacity: 0.06;
+}
+
+[data-theme="dark"] .layout-sidebar,
+[data-theme="dark"] .layout-content {
+  background: var(--ln-surface);
+  border: 1px solid var(--ln-border);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), var(--ta-shadow);
+}
+
+[data-theme="dark"] .nav-icon {
+  filter: brightness(0) invert(0.88) !important;
+}
+
+[data-theme="dark"] .nav-item,
+[data-theme="dark"] .sub-menu-item {
+  color: #d0d4dc;
+}
+
+[data-theme="dark"] .nav-item:hover,
+[data-theme="dark"] .sub-menu-item:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+  color: #ffffff;
+}
+
+[data-theme="dark"] .nav-item.active-parent {
+  background: rgba(227, 6, 19, 0.14) !important;
+  color: #ff6b72 !important;
+  border: 1px solid rgba(227, 6, 19, 0.22);
+}
+
+[data-theme="dark"] .nav-item.active,
+[data-theme="dark"] .sub-menu-item.active {
+  background: linear-gradient(180deg, #e30613 0%, #b80f18 100%);
+  color: #ffffff;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), 0 4px 14px rgba(227, 6, 19, 0.28);
+}
+
+/* Header halaman fitur bergaya Linear: dark glass dengan aksen merah halus */
+[data-theme="dark"] .feature-page-header {
+  background: linear-gradient(90deg, rgba(227, 6, 19, 0.2) 0%, rgba(20, 21, 25, 0.92) 55%, rgba(20, 21, 25, 0.92) 100%);
+  border: 1px solid rgba(227, 6, 19, 0.28);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  color: #f8fafc;
+}
+
+[data-theme="dark"] .mobile-menu-btn {
+  background: var(--ln-card);
+  border-color: var(--ln-border-strong);
+  color: var(--ln-text);
+}
+
+@media (max-width: 900px) {
+  [data-theme="dark"] .layout-sidebar {
+    background: rgba(12, 13, 16, 0.97);
+  }
+}
+
+[data-theme="dark"] .layout-footer {
+  background: #08090a;
+  border-top: 1px solid var(--ln-border);
+  color: var(--ln-muted);
+}
+
+/* --- Halaman Welcome --- */
+[data-theme="dark"] .lw-title,
+[data-theme="dark"] .lw-verita-name,
+[data-theme="dark"] .lw-card h3 {
+  color: #f8fafc;
+}
+
+[data-theme="dark"] .lw-desc,
+[data-theme="dark"] .lw-verita-sub,
+[data-theme="dark"] .lw-card p {
+  color: var(--ln-muted);
+}
+
+[data-theme="dark"] .lw-card,
+[data-theme="dark"] .lw-badge {
+  background: var(--ln-card);
+  border: 1px solid var(--ln-border);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+[data-theme="dark"] .lw-card:hover {
+  background: var(--ln-card-hover);
+  border-color: var(--ln-border-strong);
+}
+
+[data-theme="dark"] .lw-btn-secondary {
+  background: var(--ln-card);
+  color: var(--ln-text);
+  border: 1px solid var(--ln-border-strong);
+}
+
+[data-theme="dark"] .lw-btn-secondary:hover {
+  background: var(--ln-card-hover);
+}
+
+/* --- Kartu Form, Input & Komponen Pendukung --- */
+[data-theme="dark"] .evidence-form-fields,
+[data-theme="dark"] .evidence-heading-field,
+[data-theme="dark"] .evidence-section-card,
+[data-theme="dark"] .compressor-intro,
+[data-theme="dark"] .compressor-item,
+[data-theme="dark"] .pdfimp-thumb,
+[data-theme="dark"] .export-options,
+[data-theme="dark"] .bundle-bar {
+  background: var(--ln-card);
+  color: var(--ln-text);
+  border: 1px solid var(--ln-border);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 4px 16px rgba(0, 0, 0, 0.35);
+}
+
+[data-theme="dark"] .evidence-form-fields label,
+[data-theme="dark"] .evidence-heading-field label,
+[data-theme="dark"] .evidence-section-card h4,
+[data-theme="dark"] .export-options label,
+[data-theme="dark"] .export-options summary,
+[data-theme="dark"] .bundle-bar-title,
+[data-theme="dark"] .bundle-field-label {
+  color: #e4e6eb;
+}
+
+[data-theme="dark"] .evidence-section-desc,
+[data-theme="dark"] .evidence-bulk-toolbar,
+[data-theme="dark"] .compressor-intro,
+[data-theme="dark"] .compressor-size,
+[data-theme="dark"] .pdfimp-toolbar,
+[data-theme="dark"] .pdfimp-thumb-name,
+[data-theme="dark"] .export-options-hint,
+[data-theme="dark"] .bundle-bar-subtitle,
+[data-theme="dark"] .bundle-bar-hint,
+[data-theme="dark"] .bundle-bar-empty,
+[data-theme="dark"] .bundle-field-help,
+[data-theme="dark"] .bundle-bar-note {
+  color: var(--ln-muted);
+}
+
+[data-theme="dark"] .evidence-form input:not([type="checkbox"]):not([type="radio"]),
+[data-theme="dark"] .evidence-form select,
+[data-theme="dark"] .evidence-form textarea,
+[data-theme="dark"] .export-options input,
+[data-theme="dark"] .export-options select,
+[data-theme="dark"] .bundle-bar input,
+[data-theme="dark"] .bundle-bar select {
+  background: var(--ln-input);
+  color: var(--ln-text);
+  border: 1px solid var(--ln-border);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+[data-theme="dark"] .evidence-form input:focus,
+[data-theme="dark"] .evidence-form select:focus,
+[data-theme="dark"] .evidence-form textarea:focus,
+[data-theme="dark"] .bundle-bar input:focus,
+[data-theme="dark"] .bundle-bar select:focus {
+  outline: none;
+  border-color: rgba(227, 6, 19, 0.65);
+  box-shadow: 0 0 0 3px rgba(227, 6, 19, 0.14);
+}
+
+/* --- Sapu Bersih Kotak Upload / Dropzone (Evidence, BOQ, OPM, OTDR, Mancore, KML, ABD) --- */
+[data-theme="dark"] .evidence-bulk-dropzone,
+[data-theme="dark"] .evidence-upload-box,
+[data-theme="dark"] .pdfimp-upload-box,
+[data-theme="dark"] .evidence-form label[class*="upload"],
+[data-theme="dark"] .evidence-form div[class*="upload"],
+[data-theme="dark"] .evidence-form label[class*="drop"],
+[data-theme="dark"] .evidence-form div[class*="drop"] {
+  background: var(--ln-input) !important;
+  border: 1.5px dashed rgba(255, 255, 255, 0.16) !important;
+  color: #cbd5e1 !important;
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+[data-theme="dark"] .evidence-bulk-dropzone:hover,
+[data-theme="dark"] .evidence-upload-box:hover,
+[data-theme="dark"] .pdfimp-upload-box:hover,
+[data-theme="dark"] .evidence-form label[class*="upload"]:hover,
+[data-theme="dark"] .evidence-form label[class*="drop"]:hover,
+[data-theme="dark"] .evidence-form .dragging {
+  background: rgba(227, 6, 19, 0.08) !important;
+  border-color: rgba(227, 6, 19, 0.6) !important;
+  color: #f8fafc !important;
+}
+
+[data-theme="dark"] .evidence-bulk-hint,
+[data-theme="dark"] .evidence-form [class*="hint"] {
+  color: var(--ln-muted) !important;
+}
+
+/* --- Tombol Sekunder & Tab Pilihan (BOQ / OPM / Mancore: Import Excel vs Gambar) --- */
+[data-theme="dark"] .evidence-btn-secondary,
+[data-theme="dark"] .evidence-bulk-clear,
+[data-theme="dark"] .evidence-bulk-move,
+[data-theme="dark"] .evidence-remove-btn,
+[data-theme="dark"] .pdfimp-clear,
+[data-theme="dark"] .pdfimp-thumb-btn,
+[data-theme="dark"] .bundle-chip,
+[data-theme="dark"] .evidence-form button[class*="tab"]:not(.active),
+[data-theme="dark"] .evidence-form button[class*="mode"]:not(.active),
+[data-theme="dark"] .evidence-form button[class*="toggle"]:not(.active) {
+  background: #1b1d23 !important;
+  color: #e4e6eb !important;
+  border: 1px solid var(--ln-border-strong) !important;
+}
+
+[data-theme="dark"] .evidence-btn-secondary:hover,
+[data-theme="dark"] .evidence-form button[class*="tab"]:not(.active):hover,
+[data-theme="dark"] .evidence-form button[class*="mode"]:not(.active):hover {
+  background: #242730 !important;
+  color: #ffffff !important;
+}
+
+[data-theme="dark"] .evidence-submit-btn {
+  background: linear-gradient(180deg, #e30613 0%, #c10d17 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), 0 4px 14px rgba(227, 6, 19, 0.3);
+}
+
+[data-theme="dark"] .evidence-submit-btn:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+[data-theme="dark"] .pdfimp-thumb img {
+  background: var(--ln-input);
+}
+
+/* --- Scrollbar Minimalis --- */
+[data-theme="dark"] .layout-content::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.14);
+}
+[data-theme="dark"] .layout-content::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.28);
+}
+/* Tangkap tombol non-aktif lain di dalam form (mis. pilihan Excel vs Gambar di BOQ/OPM/Mancore) */
+[data-theme="dark"] .evidence-form button:not([class*="active"]):not([class*="submit"]):not([class*="primary"]):not([class*="remove"]):not([class*="add-card"]):not([aria-pressed="true"]) {
+  background: #1b1d23 !important;
+  color: #e4e6eb !important;
+  border: 1px solid var(--ln-border-strong) !important;
+}
+
+[data-theme="dark"] .evidence-form button:not([class*="active"]):not([class*="submit"]):not([class*="primary"]):not([class*="remove"]):not([class*="add-card"]):not([aria-pressed="true"]):hover:not(:disabled) {
+  background: #242730 !important;
+  color: #ffffff !important;
+}
+/* --- Perbaikan Hover Sidebar (Gaya Linear: karbon lembut, tidak putih) --- */
+[data-theme="dark"] .nav-item:not(.active):hover,
+[data-theme="dark"] .sub-menu-item:not(.active):hover {
+  background: rgba(255, 255, 255, 0.06) !important;
+  color: #ffffff !important;
+}
+
+[data-theme="dark"] .nav-item.active-parent:hover {
+  background: rgba(227, 6, 19, 0.22) !important;
+  color: #ff8086 !important;
+}
+
+/* --- Penyesuaian Pil & Tag di Halaman Welcome --- */
+/* Pil atas: "Telkom Akses • Internal Document Tools" */
+[data-theme="dark"] .lw-badge,
+[data-theme="dark"] [class*="lw-"] [class*="badge"],
+[data-theme="dark"] [class*="lw-"] [class*="pill"] {
+  background: rgba(255, 255, 255, 0.05) !important;
+  color: #d0d4dc !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04) !important;
+}
+
+/* Tag kecil di dalam kartu: "LACT", "BAUT", "Utility" */
+[data-theme="dark"] .lw-card [class*="tag"],
+[data-theme="dark"] .lw-card [class*="badge"],
+[data-theme="dark"] .lw-card [class*="pill"],
+[data-theme="dark"] .lw-card [class*="chip"],
+[data-theme="dark"] .lw-card [class*="label"] {
+  background: rgba(227, 6, 19, 0.14) !important;
+  color: #ff6b72 !important;
+  border: 1px solid rgba(227, 6, 19, 0.28) !important;
+}
+
+/* Cerahkan gradien "Lebih Cepat & Terstruktur." agar kata "Lebih" terbaca jelas */
+[data-theme="dark"] .lw-title span {
+  background: linear-gradient(90deg, #f8fafc 0%, #ff5a61 45%, #e30613 100%) !important;
+  -webkit-background-clip: text !important;
+  background-clip: text !important;
+  color: transparent !important;
+}
+/* --- PENGAMAN: Kertas preview & cetak PDF wajib tetap putih --- */
+[data-theme="dark"] .pdf-page {
+  background: #ffffff;
+  color: #222222;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.65);
+}

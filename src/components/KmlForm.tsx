@@ -8,6 +8,7 @@ import SimpleExportOptionsPanel, {
 import { QUALITY_PRESETS, buildPdfFileName } from './ExportOptions';
 import { compressImage } from '../utils/imageCompress';
 import { generatePdfFromElement } from '../utils/pdfFromElement';
+import { focusAndShake, showToast } from '../utils/uiFeedback';
 import type { ProjectData } from '../types/evidence';
 import '../assets/style_Kml.css';
 import { useSharedProject } from '../utils/projectStore';
@@ -37,9 +38,6 @@ export default function KmlForm({ docTitle, pageTitle, activeMenu, defaultDocHea
   const [project, setProject] = useSharedProject(emptyProject);
   const [docHeading, setDocHeading] = useState(defaultDocHeading);
 
-  // Gambar screenshot Google Earth/KML, seperti pada halaman BOQ/OPM/Mancore.
-  // `kmlImageFile` menyimpan file ASLI (dipakai saat export PDF supaya tetap tajam),
-  // `kmlImagePreview` menyimpan versi ringan untuk ditampilkan di layar.
   const [kmlImageFile, setKmlImageFile] = useState<File | null>(null);
   const [kmlImagePreview, setKmlImagePreview] = useState<string | null>(null);
 
@@ -59,24 +57,33 @@ export default function KmlForm({ docTitle, pageTitle, activeMenu, defaultDocHea
       const preview = await compressImage(file);
       setKmlImageFile(file);
       setKmlImagePreview(preview);
+      showToast('Gambar lampiran KML berhasil diunggah.', 'success');
     } catch (err) {
       console.error(err);
-      alert(`Gambar "${file.name}" tidak bisa dibuka. Pastikan formatnya JPG atau PNG.`);
+      showToast(`Gambar "${file.name}" tidak bisa dibuka. Pastikan formatnya JPG atau PNG.`, 'error');
     }
   };
 
   const handlePreview = () => {
     if (docHeading.trim() === '') {
-      alert('Mohon isi judul dokumen terlebih dahulu.');
+      showToast('Mohon isi judul dokumen terlebih dahulu.', 'error');
+      focusAndShake(document.getElementById('kml-heading'));
       return;
     }
     const projectBelumLengkap = Object.values(project).some((v) => v.trim() === '');
     if (projectBelumLengkap) {
-      alert('Mohon lengkapi semua data proyek terlebih dahulu.');
+      showToast('Mohon lengkapi semua data proyek terlebih dahulu.', 'error');
+      const emptyField = Array.from(
+        document.querySelectorAll<HTMLInputElement | HTMLSelectElement>(
+          '#kml-project-fields input, #kml-project-fields select'
+        )
+      ).find((el) => el.value.trim() === '');
+      focusAndShake(emptyField ?? null);
       return;
     }
     if (!kmlImagePreview) {
-      alert('Mohon unggah gambar lampiran KML terlebih dahulu.');
+      showToast('Mohon unggah gambar lampiran KML terlebih dahulu.', 'error');
+      focusAndShake(document.querySelector<HTMLElement>('.kml-image-upload-box'));
       return;
     }
     setMode('preview');
@@ -86,7 +93,6 @@ export default function KmlForm({ docTitle, pageTitle, activeMenu, defaultDocHea
     setIsProcessing(true);
     try {
       const safeName = (project.lokasi || project.proyek || 'dokumen').trim().replace(/\s+/g, '_');
-      // Gambar KML asli (resolusi penuh) dipakai saat export, supaya label/kotak tetap tajam
       const originals: Record<string, Blob> = kmlImageFile
         ? { 'kml-image': kmlImageFile }
         : {};
@@ -97,9 +103,10 @@ export default function KmlForm({ docTitle, pageTitle, activeMenu, defaultDocHea
         undefined,
         QUALITY_PRESETS[exportOpts.quality]
       );
+      showToast(`KML ${docTitle} berhasil diunduh.`, 'success');
     } catch (err) {
       console.error(err);
-      alert('Gagal membuat PDF, coba lagi.');
+      showToast('Gagal membuat PDF, coba lagi.', 'error');
     } finally {
       setIsProcessing(false);
     }
@@ -147,7 +154,7 @@ export default function KmlForm({ docTitle, pageTitle, activeMenu, defaultDocHea
           />
         </div>
 
-        <div className="evidence-form-fields">
+        <div id="kml-project-fields" className="evidence-form-fields">
           <label>
             Proyek
             <input

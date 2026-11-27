@@ -1,57 +1,52 @@
 import { useState } from 'react';
 import MainLayout from './MainLayout';
 import PdfImportPage from './PdfImportPage';
-import { QUALITY_PRESETS, buildPdfFileName, type PdfQuality } from './ExportOptions';
-import { generatePdfFromElement } from '../utils/pdfFromElement';
+import { buildPdfFileName } from './ExportOptions';
 import { isPdfFile, renderPdfToImages } from '../utils/pdfImport';
+import {
+  exportRawPdfPages,
+  registerRawPdfPage,
+  unregisterRawPdfPage,
+} from '../utils/pdfBundle';
+import { focusAndShake, showToast } from '../utils/uiFeedback';
 import { useSharedProject } from '../utils/projectStore';
 import '../assets/style_Evidence.css';
 import '../assets/style_ExportOptions.css';
 import '../assets/style_PdfImport.css';
 
 interface PdfImportFormProps {
-  /** 'BAUT' — dipakai untuk nama file yang diunduh */
+  /** 'LACT' atau 'BAUT' — dipakai untuk nama file yang diunduh */
   docTitle: string;
-  /** Judul yang tampil di kop halaman aplikasi, mis. "Buat BAUT — NDE" */
+  /** Judul yang tampil di kop halaman aplikasi, mis. "Buat BAUT — ABD" */
   pageTitle: string;
-  /** 'baut-builder' — supaya sidebar menyorot menu yang benar */
+  /** 'lact-builder' atau 'baut-builder' — supaya sidebar menyorot menu yang benar */
   activeMenu: string;
-  /** Nama bagian seperti di menu, mis. "NDE" / "BA Tambah Kurang" / "BA ABD" */
+  /** Nama bagian seperti di menu, mis. "ABD" / "NDE" / "BA Tambah Kurang" / "BA ABD" */
   sectionLabel: string;
-  /** Penanda di nama file unduhan (tanpa spasi), mis. "NDE" / "BA_Tambah_Kurang" */
+  /** Penanda di nama file unduhan (tanpa spasi), mis. "ABD" / "NDE" */
   fileTag: string;
 }
 
-/** Satu halaman dari PDF yang diimpor, sudah berupa gambar. */
+/** Satu halaman dari PDF yang diimpor: preview untuk layar, bytes+pageIndex untuk ekspor asli. */
 interface ImportedPage {
   id: string;
-  /** Nama file sumber (+ nomor halaman kalau PDF-nya lebih dari satu halaman) */
   name: string;
-  /** Nama file sumber saja, tanpa ekstensi (cadangan untuk nama file unduhan) */
   source: string;
   preview: string;
+  bytes: Uint8Array;
+  pageIndex: number;
 }
 
-/** Batas halaman yang diimpor sekaligus, supaya browser tidak kehabisan memori. */
 const MAX_PAGES = 80;
-/** Halaman penuh dirender lebih tajam daripada gambar hasil ukur (teks surat/BA kecil). */
-const RENDER_OPTIONS = { trim: false, scale: 3, format: 'jpeg', jpegQuality: 0.92, maxSide: 3400 } as const;
+/** Hanya untuk preview di layar (ekspor PDF memakai file asli, bukan gambar ini). */
+const RENDER_OPTIONS = { trim: false, scale: 2, format: 'jpeg', jpegQuality: 0.88, maxSide: 2200 } as const;
 
 let idCounter = 0;
-const newId = () => `${Date.now()}-${idCounter++}`;
+const newId = () => `rawpdf-${Date.now()}-${idCounter++}`;
 const byName = (a: File, b: File) =>
   a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
 const stripExt = (name: string) => name.replace(/\.pdf$/i, '');
 
-/**
- * Form generik "Import PDF" untuk dokumen yang SUDAH jadi dan hanya perlu
- * dimasukkan apa adanya ke paket BAUT: NDE, BA Tambah Kurang, dan BA ABD.
- * Ketiganya memakai komponen yang sama; dibedakan lewat props (lihat BuatBaut.tsx).
- *
- * Alur: pilih file PDF -> tiap halamannya dirender jadi gambar -> atur urutan /
- * hapus halaman -> Lihat Preview -> unduh per bagian, atau "Simpan & lanjut"
- * lewat Paket PDF Lengkap (BundleBar di MainLayout, tanpa perubahan).
- */
 export default function PdfImportForm({
   docTitle,
   pageTitle,
@@ -59,7 +54,6 @@ export default function PdfImportForm({
   sectionLabel,
   fileTag,
 }: PdfImportFormProps) {
-  // Hanya dibaca untuk nama file (Lokasi/Proyek kalau sudah diisi di Cover); form ini tidak meminta data proyek.
   const [project] = useSharedProject();
 
   const [items, setItems] = useState<ImportedPage[]>([]);
@@ -68,7 +62,6 @@ export default function PdfImportForm({
 
   const [mode, setMode] = useState<'form' | 'preview'>('form');
   const [isProcessing, setIsProcessing] = useState(false);
-  const [quality, setQuality] = useState<PdfQuality>('standar');
   const [fileName, setFileName] = useState('');
 
   // ---------- Impor file PDF ----------
@@ -78,7 +71,7 @@ export default function PdfImportForm({
     const pdfs = fileList.filter(isPdfFile).sort(byName);
     const notPdf = fileList.filter((f) => !isPdfFile(f));
     if (pdfs.length === 0) {
-      alert(`Pilih file PDF ${sectionLabel}. Format lain tidak bisa diimpor di sini.`);
+      showToast(`Pilih file PDF ${sectionLabel}. Format lain tidak bisa diimpor di sini.`, 'error');
       return;
     }
 
@@ -88,19 +81,23 @@ export default function PdfImportForm({
     for (const file of pdfs) {
       try {
         setLoading(`Membaca ${file.name}...`);
+        const rawBytes = new Uint8Array(await file.arrayBuffer());
         const pages = await renderPdfToImages(
           file,
           (done, total) => setLoading(`${file.name}: halaman ${done} dari ${total}...`),
           RENDER_OPTIONS
         );
-        pages.forEach((preview, i) =>
+        pages.forEach((preview, i) => {
+          const id = newId();
           added.push({
-            id: newId(),
+            id,
             name: pages.length > 1 ? `${file.name} — hal ${i + 1}` : file.name,
             source: stripExt(file.name),
             preview,
-          })
-        );
+            bytes: rawBytes,
+            pageIndex: i,
+          });
+        });
       } catch (err) {
         console.error(err);
         problems.push(`${file.name}: tidak bisa dibuka (file rusak, diberi password, atau bukan PDF yang valid)`);
@@ -114,7 +111,13 @@ export default function PdfImportForm({
       accepted = added.slice(0, Math.max(0, room));
       problems.push(`Hanya ${MAX_PAGES} halaman yang bisa diimpor sekaligus; ${added.length - accepted.length} halaman dilewati`);
     }
-    if (accepted.length > 0) setItems((prev) => [...prev, ...accepted]);
+    if (accepted.length > 0) {
+      accepted.forEach((it) =>
+        registerRawPdfPage(it.id, { bytes: it.bytes, pageIndex: it.pageIndex })
+      );
+      setItems((prev) => [...prev, ...accepted]);
+      showToast(`${accepted.length} halaman ${sectionLabel} berhasil diimpor.`, 'success');
+    }
     if (problems.length > 0) alert(`Sebagian file dilewati:\n\n${problems.map((p) => `• ${p}`).join('\n')}`);
   };
 
@@ -128,15 +131,22 @@ export default function PdfImportForm({
     });
   };
 
-  const removeItem = (id: string) => setItems((prev) => prev.filter((it) => it.id !== id));
+  const removeItem = (id: string) => {
+    unregisterRawPdfPage(id);
+    setItems((prev) => prev.filter((it) => it.id !== id));
+  };
 
   const clearItems = () => {
-    if (window.confirm(`Hapus semua halaman ${sectionLabel} yang sudah diimpor?`)) setItems([]);
+    if (window.confirm(`Hapus semua halaman ${sectionLabel} yang sudah diimpor?`)) {
+      items.forEach((it) => unregisterRawPdfPage(it.id));
+      setItems([]);
+    }
   };
 
   const handlePreview = () => {
     if (items.length === 0) {
-      alert(`Mohon impor file PDF ${sectionLabel} terlebih dahulu.`);
+      showToast(`Mohon impor file PDF ${sectionLabel} terlebih dahulu.`, 'error');
+      focusAndShake(document.querySelector<HTMLElement>('.pdfimp-upload-box'));
       return;
     }
     setMode('preview');
@@ -148,16 +158,14 @@ export default function PdfImportForm({
       const safeName = (project.lokasi || project.proyek || items[0]?.source || 'dokumen')
         .trim()
         .replace(/\s+/g, '_');
-      await generatePdfFromElement(
-        'pdf-import-content',
-        buildPdfFileName({ fileName }, `${docTitle}_${fileTag}_${safeName}`),
-        {},
-        undefined,
-        QUALITY_PRESETS[quality]
+      await exportRawPdfPages(
+        items.map((it) => ({ bytes: it.bytes, pageIndex: it.pageIndex })),
+        buildPdfFileName({ fileName }, `${docTitle}_${fileTag}_${safeName}`)
       );
+      showToast(`${sectionLabel} ${docTitle} berhasil diunduh.`, 'success');
     } catch (err) {
       console.error(err);
-      alert('Gagal membuat PDF, coba lagi.');
+      showToast('Gagal mengekspor PDF asli, coba lagi.', 'error');
     } finally {
       setIsProcessing(false);
     }
@@ -175,21 +183,9 @@ export default function PdfImportForm({
           </button>
         </div>
 
-        {/* Panel opsi berada DI LUAR div ber-id pdf-..., jadi tidak ikut masuk PDF.
-            Tanpa opsi logo: halaman ini tidak punya kop buatan aplikasi. */}
         <details className="export-options" open>
           <summary>Opsi Export PDF</summary>
           <div className="export-options-grid">
-            <label>
-              Kualitas PDF
-              <select value={quality} onChange={(e) => setQuality(e.target.value as PdfQuality)}>
-                {(Object.keys(QUALITY_PRESETS) as PdfQuality[]).map((q) => (
-                  <option key={q} value={q}>
-                    {QUALITY_PRESETS[q].label}
-                  </option>
-                ))}
-              </select>
-            </label>
             <label>
               Nama file (opsional)
               <input
@@ -200,14 +196,15 @@ export default function PdfImportForm({
               />
             </label>
             <p className="export-options-hint">
-              Isi dokumen ditampilkan apa adanya dari PDF yang diimpor, tanpa header tambahan.
+              Halaman diekspor langsung dari file PDF asli — ukuran kertas (mis. A3 Landscape) dan ketajaman
+              vektor tetap terjaga 100%.
             </p>
           </div>
         </details>
 
         <div id="pdf-import-content">
           {items.map((it, i) => (
-            <div key={it.id}>
+            <div key={it.id} data-raw-pdf-id={it.id}>
               <PdfImportPage imageDataUrl={it.preview} imageAlt={`${sectionLabel} halaman ${i + 1}`} />
               {i < items.length - 1 && <div className="pdf-page-gap">— Akhir Halaman {i + 1} —</div>}
             </div>
@@ -243,8 +240,8 @@ export default function PdfImportForm({
               {loading ?? `Klik untuk pilih file PDF ${sectionLabel}, atau seret dan lepas ke sini`}
             </span>
             <span className="pdfimp-upload-hint">
-              Setiap halaman PDF dimasukkan apa adanya (tanpa header tambahan), satu halaman PDF menjadi satu
-              halaman hasil. Boleh memilih beberapa file sekaligus.
+              Setiap halaman PDF disalin apa adanya dari file asli (ukuran A3/A4, orientasi landscape/portrait,
+              dan ketajaman tetap utuh). Boleh memilih beberapa file sekaligus.
             </span>
           </label>
           <input

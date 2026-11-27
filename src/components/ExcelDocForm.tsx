@@ -10,6 +10,7 @@ import SimpleExportOptionsPanel, {
 import { QUALITY_PRESETS, buildPdfFileName } from './ExportOptions';
 import { compressImage, formatBytes, MAX_ORIGINAL_BYTES, MAX_ORIGINAL_MB } from '../utils/imageCompress';
 import { generatePdfFromElement } from '../utils/pdfFromElement';
+import { focusAndShake, showToast } from '../utils/uiFeedback';
 import { readXlsx, type WorkbookModel } from '../utils/xlsxReader';
 import { buildSheetTable, paginateTable, prepareOpmTable, stretchRowsToFit, type SheetTable } from '../utils/xlsxTable';
 import type { ProjectData } from '../types/evidence';
@@ -72,16 +73,10 @@ const emptyProject: ProjectData = {
   pelaksana: '',
 };
 
-// Ukuran halaman A4 pada 96 dpi (794 x 1123 px). Lebar TABEL = 794 dikurangi 40px di tiap sisi.
-// Sengaja lebih lebar dari kotak teks halaman (602px, margin Word 96px): tabel Excel itu lebar,
-// jadi dibiarkan menjorok ke margin secara SIMETRIS di tengah halaman (lihat style_ExcelDoc.css).
 const CONTENT_WIDTH = 714;
-// Tinggi yang tersedia untuk isi (tabel) di bawah header, tergantung judul 1 atau 2 baris
 const FRAME_HEIGHT_TWO_LINE = 690;
 const FRAME_HEIGHT_ONE_LINE = 722;
-// Tinggi blok tanda tangan (dikurangkan dari tinggi tersedia kalau blok itu dipakai)
 const SIGN_HEIGHT = 250;
-/** Tinggi blok tanda tangan 2 pihak (lebih ringkas dari blok 1 pihak): margin atas + 5 baris + ruang tanda tangan */
 const SIGN_HEIGHT_DUAL = 215;
 
 export default function ExcelDocForm({
@@ -118,7 +113,6 @@ export default function ExcelDocForm({
   const [jabatanBaris2, setJabatanBaris2] = useState(dualSign ? DEFAULT_RIGHT_PARTY.jabatanBaris2 : 'PT. TELKOM AKSES');
   const [kota, setKota] = useState('');
   const [signatureDataUrl, setSignatureDataUrl] = useState<string | null>(null);
-  // Pihak kiri (hanya dipakai kalau dualSign). Pihak kanan = nama/nik/jabatan/tanda tangan di atas.
   const [leftParty, setLeftParty] = useState<SignParty>(DEFAULT_LEFT_PARTY);
 
   const [mode, setMode] = useState<'form' | 'preview'>('form');
@@ -130,13 +124,10 @@ export default function ExcelDocForm({
   };
 
   // ---------- Tabel dari tiap sheet (dihitung sekali per file) ----------
-  // Khusus OPM, tabel dirapikan lebih dulu (blok info Excel dibuang karena sudah ada di header halaman,
-  // judul kolom diulang di halaman lanjutan, dst.; lihat prepareOpmTable). BOQ & Mancore tidak berubah.
   const tables = useMemo(() => {
     const map = new Map<string, SheetTable | null>();
     workbook?.sheets.forEach((s) => {
       const t = buildSheetTable(s);
-      // Blok tanda tangan bawaan Excel dibuang kalau blok tanda tangan dari form aktif (supaya tidak dobel)
       map.set(s.name, t && kind === 'opm' ? prepareOpmTable(t, { dropTrailer: showSign }) : t);
     });
     return map;
@@ -161,7 +152,6 @@ export default function ExcelDocForm({
       const base = tables.get(s.name);
       if (!base) continue;
       const zoom = Math.min(1, CONTENT_WIDTH / base.totalWidth);
-      // OPM yang muat satu halaman: jarak antarbaris dilonggarkan sedikit (seperti dokumen acuan)
       const t = kind === 'opm' ? stretchRowsToFit(base, zoom, frameHeight) : base;
       paginateTable(t, zoom, frameHeight).forEach((rows, i) => out.push({ key: `${s.name}-${i}`, table: t, rows, zoom }));
     }
@@ -175,11 +165,11 @@ export default function ExcelDocForm({
     if (importLoading || files.length === 0) return;
     const file = files.find((f) => /\.(xlsx|xlsm)$/i.test(f.name));
     if (!file) {
-      setImportError(
-        files.some((f) => /\.xls$/i.test(f.name))
-          ? 'Format .xls (Excel lama) belum bisa dibaca. Buka di Excel, lalu simpan sebagai .xlsx.'
-          : 'Pilih file Excel berformat .xlsx.'
-      );
+      const msg = files.some((f) => /\.xls$/i.test(f.name))
+        ? 'Format .xls (Excel lama) belum bisa dibaca. Buka di Excel, lalu simpan sebagai .xlsx.'
+        : 'Pilih file Excel berformat .xlsx.';
+      setImportError(msg);
+      showToast(msg, 'error');
       return;
     }
     setImportLoading(true);
@@ -193,15 +183,17 @@ export default function ExcelDocForm({
       const chosen = info.defaultSheets === 'all' ? visible : [visible[0]];
       setWorkbook(wb);
       setSelected(new Set(chosen.map((s) => s.name)));
+      showToast(`File Excel "${file.name}" berhasil dimuat.`, 'success');
     } catch (err) {
       console.error(err);
       setWorkbook(null);
       setSelected(new Set());
-      setImportError(
+      const msg =
         err instanceof Error && err.message.startsWith('Tidak ada sheet')
           ? err.message
-          : 'File Excel tidak bisa dibaca. Pastikan file .xlsx tidak rusak dan tidak dikunci password.'
-      );
+          : 'File Excel tidak bisa dibaca. Pastikan file .xlsx tidak rusak dan tidak dikunci password.';
+      setImportError(msg);
+      showToast(msg, 'error');
     } finally {
       setImportLoading(false);
     }
@@ -220,14 +212,18 @@ export default function ExcelDocForm({
   const handleImageChange = async (file: File | null) => {
     if (!file) return;
     if (file.size > MAX_ORIGINAL_BYTES) {
-      alert(`Gambar ${file.name} (${formatBytes(file.size)}) lebih dari ${MAX_ORIGINAL_MB} MB. Kompres dulu lewat menu Kompres Foto.`);
+      showToast(
+        `Gambar ${file.name} (${formatBytes(file.size)}) lebih dari ${MAX_ORIGINAL_MB} MB. Kompres dulu lewat menu Kompres Foto.`,
+        'error'
+      );
       return;
     }
     try {
       setImage({ file, preview: await compressImage(file) });
+      showToast(`Gambar ${info.fileTag} berhasil diunggah.`, 'success');
     } catch (err) {
       console.error(err);
-      alert(`Gambar "${file.name}" tidak bisa dibuka. Pastikan formatnya JPG atau PNG.`);
+      showToast(`Gambar "${file.name}" tidak bisa dibuka. Pastikan formatnya JPG atau PNG.`, 'error');
     }
   };
 
@@ -235,9 +231,10 @@ export default function ExcelDocForm({
     if (!file) return;
     try {
       setSignatureDataUrl(await compressImage(file));
+      showToast('Foto tanda tangan berhasil diunggah.', 'success');
     } catch (err) {
       console.error(err);
-      alert(`Foto tanda tangan "${file.name}" tidak bisa dibuka. Pastikan formatnya JPG atau PNG.`);
+      showToast(`Foto tanda tangan "${file.name}" tidak bisa dibuka. Pastikan formatnya JPG atau PNG.`, 'error');
     }
   };
 
@@ -251,33 +248,72 @@ export default function ExcelDocForm({
   };
 
   const handlePreview = () => {
-    if (titleLine1.trim() === '' || (twoLines && titleLine2.trim() === '')) {
-      alert('Mohon isi judul dokumen terlebih dahulu.');
+    if (titleLine1.trim() === '') {
+      showToast('Mohon isi judul dokumen terlebih dahulu.', 'error');
+      focusAndShake(document.getElementById(twoLines ? `${inputId}-title-1` : `${inputId}-title`));
+      return;
+    }
+    if (twoLines && titleLine2.trim() === '') {
+      showToast('Mohon isi judul dokumen baris 2 terlebih dahulu.', 'error');
+      focusAndShake(document.getElementById(`${inputId}-title-2`));
       return;
     }
     if (Object.values(project).some((v) => v.trim() === '')) {
-      alert('Mohon lengkapi semua data proyek terlebih dahulu.');
+      showToast('Mohon lengkapi semua data proyek terlebih dahulu.', 'error');
+      const emptyField = Array.from(
+        document.querySelectorAll<HTMLInputElement | HTMLSelectElement>(
+          `#${inputId}-project-fields input, #${inputId}-project-fields select`
+        )
+      ).find((el) => el.value.trim() === '');
+      focusAndShake(emptyField ?? null);
       return;
     }
     if (source === 'excel' && excelPages.length === 0) {
-      alert(workbook ? 'Mohon centang minimal satu sheet.' : 'Mohon impor file Excel terlebih dahulu.');
+      showToast(workbook ? 'Mohon centang minimal satu sheet.' : 'Mohon impor file Excel terlebih dahulu.', 'error');
+      focusAndShake(document.querySelector<HTMLElement>('.xdoc-dropzone, .xdoc-import'));
       return;
     }
     if (source === 'image' && !image) {
-      alert('Mohon unggah gambar terlebih dahulu.');
+      showToast('Mohon unggah gambar terlebih dahulu.', 'error');
+      focusAndShake(document.querySelector<HTMLElement>('.xdoc-dropzone'));
       return;
     }
-    if (showSign && (!tanggalISO || nama.trim() === '' || nik.trim() === '' || kota.trim() === '')) {
-      alert(
-        dualSign
-          ? 'Mohon lengkapi Tanggal, Kota, serta Nama dan NIK penandatangan kanan untuk blok tanda tangan (atau matikan blok tanda tangan).'
-          : 'Mohon lengkapi Tanggal, Kota, Nama, dan NIK untuk blok tanda tangan (atau matikan blok tanda tangan).'
-      );
-      return;
-    }
-    if (showSign && dualSign && (leftParty.nama.trim() === '' || leftParty.nik.trim() === '')) {
-      alert('Mohon lengkapi Nama dan NIK penandatangan kiri (atau matikan blok tanda tangan).');
-      return;
+    if (showSign) {
+      if (!tanggalISO) {
+        showToast('Mohon pilih tanggal untuk blok tanda tangan (atau matikan blok tanda tangan).', 'error');
+        focusAndShake(document.getElementById(`${inputId}-tanggal`));
+        return;
+      }
+      if (kota.trim() === '') {
+        showToast('Mohon isi kota untuk baris tanda tangan (atau matikan blok tanda tangan).', 'error');
+        focusAndShake(document.getElementById(`${inputId}-kota`));
+        return;
+      }
+      if (dualSign && (leftParty.nama.trim() === '' || leftParty.nik.trim() === '')) {
+        showToast('Mohon lengkapi Nama dan NIK penandatangan kiri (atau matikan blok tanda tangan).', 'error');
+        const emptySign = Array.from(
+          document.querySelectorAll<HTMLInputElement>('.evidence-form input[type="text"]')
+        ).find((el) => el.value.trim() === '');
+        focusAndShake(emptySign ?? null);
+        return;
+      }
+      if (nama.trim() === '' || nik.trim() === '') {
+        showToast(
+          dualSign
+            ? 'Mohon lengkapi Nama dan NIK penandatangan kanan (atau matikan blok tanda tangan).'
+            : 'Mohon lengkapi Nama dan NIK untuk blok tanda tangan (atau matikan blok tanda tangan).',
+          'error'
+        );
+        if (!dualSign) {
+          focusAndShake(document.getElementById(nama.trim() === '' ? `${inputId}-nama` : `${inputId}-nik`));
+        } else {
+          const emptySign = Array.from(
+            document.querySelectorAll<HTMLInputElement>('.evidence-form input[type="text"]')
+          ).find((el) => el.value.trim() === '');
+          focusAndShake(emptySign ?? null);
+        }
+        return;
+      }
     }
     setMode('preview');
   };
@@ -286,7 +322,6 @@ export default function ExcelDocForm({
     setIsProcessing(true);
     try {
       const safeName = (project.lokasi || project.proyek || 'dokumen').trim().replace(/\s+/g, '_');
-      // Untuk mode gambar, foto ASLI dipakai saat export supaya tajam
       const originals: Record<string, Blob> = {};
       if (source === 'image' && image) originals['xdoc-image'] = image.file;
       await generatePdfFromElement(
@@ -296,9 +331,10 @@ export default function ExcelDocForm({
         undefined,
         QUALITY_PRESETS[exportOpts.quality]
       );
+      showToast(`${info.fileTag} ${docTitle} berhasil diunduh.`, 'success');
     } catch (err) {
       console.error(err);
-      alert('Gagal membuat PDF, coba lagi.');
+      showToast('Gagal membuat PDF, coba lagi.', 'error');
     } finally {
       setIsProcessing(false);
     }
@@ -369,11 +405,11 @@ export default function ExcelDocForm({
           <div className="evidence-form-fields">
             <label>
               Judul Dokumen — Baris 1
-              <input type="text" value={titleLine1} onChange={(e) => setTitleLine1(e.target.value)} />
+              <input id={`${inputId}-title-1`} type="text" value={titleLine1} onChange={(e) => setTitleLine1(e.target.value)} />
             </label>
             <label>
               Judul Dokumen — Baris 2
-              <input type="text" value={titleLine2} onChange={(e) => setTitleLine2(e.target.value)} />
+              <input id={`${inputId}-title-2`} type="text" value={titleLine2} onChange={(e) => setTitleLine2(e.target.value)} />
             </label>
           </div>
         ) : (
@@ -389,7 +425,7 @@ export default function ExcelDocForm({
           </div>
         )}
 
-        <div className="evidence-form-fields">
+        <div id={`${inputId}-project-fields`} className="evidence-form-fields">
           <label>
             Proyek
             <input type="text" value={project.proyek} onChange={(e) => handleProjectChange('proyek', e.target.value)} placeholder="Ketik disini" />
@@ -492,11 +528,11 @@ export default function ExcelDocForm({
             <div className="evidence-form-fields" style={{ marginTop: 4 }}>
               <label>
                 Tanggal
-                <input type="date" value={tanggalISO} onChange={(e) => setTanggalISO(e.target.value)} />
+                <input id={`${inputId}-tanggal`} type="date" value={tanggalISO} onChange={(e) => setTanggalISO(e.target.value)} />
               </label>
               <label>
                 Kota (untuk baris tanda tangan)
-                <input type="text" value={kota} onChange={(e) => setKota(e.target.value)} placeholder="Contoh: Surabaya" />
+                <input id={`${inputId}-kota`} type="text" value={kota} onChange={(e) => setKota(e.target.value)} placeholder="Contoh: Surabaya" />
               </label>
             </div>
             <DualSignFields
@@ -514,19 +550,19 @@ export default function ExcelDocForm({
             <div className="evidence-form-fields" style={{ marginTop: 4 }}>
               <label>
                 Tanggal
-                <input type="date" value={tanggalISO} onChange={(e) => setTanggalISO(e.target.value)} />
+                <input id={`${inputId}-tanggal`} type="date" value={tanggalISO} onChange={(e) => setTanggalISO(e.target.value)} />
               </label>
               <label>
                 Kota (untuk baris tanda tangan)
-                <input type="text" value={kota} onChange={(e) => setKota(e.target.value)} placeholder="Contoh: Surabaya" />
+                <input id={`${inputId}-kota`} type="text" value={kota} onChange={(e) => setKota(e.target.value)} placeholder="Contoh: Surabaya" />
               </label>
               <label>
                 Nama Penandatangan
-                <input type="text" value={nama} onChange={(e) => setNama(e.target.value)} placeholder="Ketik disini" />
+                <input id={`${inputId}-nama`} type="text" value={nama} onChange={(e) => setNama(e.target.value)} placeholder="Ketik disini" />
               </label>
               <label>
                 NIK
-                <input type="text" value={nik} onChange={(e) => setNik(e.target.value)} placeholder="Ketik disini" />
+                <input id={`${inputId}-nik`} type="text" value={nik} onChange={(e) => setNik(e.target.value)} placeholder="Ketik disini" />
               </label>
               <label>
                 Jabatan — Baris 1

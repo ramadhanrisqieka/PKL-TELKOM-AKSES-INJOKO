@@ -1,33 +1,40 @@
 /**
  * "Paket PDF Lengkap": menyimpan hasil render tiap bagian (Cover, Daftar Isi,
- * ..., Lampiran KML) lalu menggabungkan semuanya jadi SATU file PDF.
+ * ..., ABD, BA ABD) lalu menggabungkan semuanya jadi SATU file PDF menggunakan pdf-lib.
  *
- * KENAPA hasil render yang disimpan, bukan isian formnya: tiap form menyimpan
- * isiannya di state komponennya sendiri dan HILANG saat user pindah menu.
- * Jadi saat user menekan "Simpan & Lanjut", halaman-halaman preview yang
- * sedang tampil di-"screenshot" (cara yang SAMA dengan unduhan biasa di
- * utils/pdfFromElement.ts: html2canvas per elemen .pdf-page) lalu disimpan di
- * memori. Form-form yang sudah ada TIDAK diubah sama sekali; tombol unduh
- * per bagian tetap berfungsi seperti biasa.
- *
- * Paket disimpan di MEMORI saja (hilang kalau halaman di-refresh/ditutup) dan
- * dipisah per jenis dokumen: paket LACT dan paket BAUT tidak bercampur.
+ * - Bagian buatan aplikasi (.pdf-page biasa) discreenshot via html2canvas -> halaman A4 Portrait.
+ * - Bagian Import PDF (NDE, BA Tambah Kurang, ABD, BA ABD) menyalin halaman PDF ASLI
+ *   secara utuh (termasuk ukuran A3 Landscape & ketajaman vektornya).
  */
 import { useSyncExternalStore } from 'react';
 import html2canvas from 'html2canvas';
-import jsPDF from 'jspdf';
+import { PDFDocument } from 'pdf-lib';
 import { findOriginal, installOriginalsTracker, whenTrackerIdle } from './originalsTracker';
 
 installOriginalsTracker();
 
-export interface BundlePage {
-  /** Gambar JPEG halaman (data URL) */
-  img: string;
-  /** Posisi & ukuran di halaman A4, satuan mm */
-  x: number;
-  w: number;
-  h: number;
+export interface RawPdfPageRef {
+  bytes: Uint8Array;
+  pageIndex: number;
 }
+
+export type BundlePage =
+  | {
+      kind: 'image';
+      /** Gambar JPEG halaman (data URL) */
+      img: string;
+      /** Posisi & ukuran di halaman A4, satuan mm */
+      x: number;
+      w: number;
+      h: number;
+    }
+  | {
+      kind: 'pdf';
+      /** File PDF asli (Uint8Array) */
+      bytes: Uint8Array;
+      /** Indeks halaman (0-based) di dalam file PDF sumber */
+      pageIndex: number;
+    };
 
 interface BundleEntry {
   pages: BundlePage[];
@@ -39,11 +46,20 @@ export interface QualitySetting {
   jpeg: number;
 }
 
+// Registry halaman PDF mentah yang sedang aktif di PdfImportForm
+const rawPdfRegistry = new Map<string, RawPdfPageRef>();
+
+export function registerRawPdfPage(id: string, ref: RawPdfPageRef) {
+  rawPdfRegistry.set(id, ref);
+}
+
+export function unregisterRawPdfPage(id: string) {
+  rawPdfRegistry.delete(id);
+}
+
 // builderId (mis. 'lact-builder') -> mode (mis. 'cover') -> isi
 const bundles = new Map<string, Map<string, BundleEntry>>();
 const fileLabels = new Map<string, string>();
-// Nama file paket yang diketik user (per builderId). Tidak memicu render ulang:
-// BundleBar membacanya sekali saat dibuka di halaman mana pun.
 const bundleNames = new Map<string, string>();
 const listeners = new Set<() => void>();
 let version = 0;
@@ -85,7 +101,6 @@ export function clearBundle(builderId: string) {
   emit();
 }
 
-/** Nama file paket yang diketik user (kosong = pakai nama otomatis). */
 export function getBundleName(builderId: string): string {
   return bundleNames.get(builderId) ?? '';
 }
@@ -122,7 +137,50 @@ export function readLokasiFromPreview(root: HTMLElement): string {
   return '';
 }
 
-// ---------- Mengambil gambar halaman dari preview yang sedang tampil ----------
+// ---------- Helper unduh & konversi satuan PDF ----------
+
+const A4_W_MM = 210;
+const A4_H_MM = 297;
+const MM_TO_PT = 72 / 25.4;
+
+function triggerPdfDownload(pdfBytes: Uint8Array, fileName: string) {
+  const blob = new Blob([pdfBytes as BlobPart], { type: 'application/pdf' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+/**
+ * Ekspor satuan untuk halaman Import PDF (ABD, NDE, BA Tambah Kurang, BA ABD):
+ * menyalin halaman asli persis sesuai urutan tanpa mengubah ukuran/orientasi (mis. A3 Landscape).
+ */
+export async function exportRawPdfPages(pages: RawPdfPageRef[], fileName: string): Promise<number> {
+  if (pages.length === 0) throw new Error('Tidak ada halaman untuk diekspor');
+
+  const outPdf = await PDFDocument.create();
+  const docCache = new Map<Uint8Array, PDFDocument>();
+
+  for (const ref of pages) {
+    let srcDoc = docCache.get(ref.bytes);
+    if (!srcDoc) {
+      srcDoc = await PDFDocument.load(ref.bytes, { ignoreEncryption: true });
+      docCache.set(ref.bytes, srcDoc);
+    }
+    const [copied] = await outPdf.copyPages(srcDoc, [ref.pageIndex]);
+    outPdf.addPage(copied);
+  }
+
+  const outBytes = await outPdf.save();
+  triggerPdfDownload(outBytes, fileName);
+  return pages.length;
+}
+
+// ---------- Mengambil halaman dari preview yang sedang tampil ----------
 
 function swapImageSrc(img: HTMLImageElement, url: string): Promise<void> {
   return new Promise<void>((resolve, reject) => {
@@ -154,13 +212,11 @@ async function waitForImages(root: HTMLElement): Promise<void> {
   );
 }
 
-const A4_W_MM = 210;
-const A4_H_MM = 297;
-
 /**
- * "Screenshot" setiap elemen .pdf-page di dalam `root`. Sama seperti
- * generatePdfFromElement: foto yang punya versi asli diganti SEMENTARA ke
- * versi resolusi penuh sebelum discreenshot, lalu dikembalikan lagi.
+ * Mengambil halaman dari setiap elemen .pdf-page di dalam `root`:
+ * - Jika halaman berasal dari Import PDF (memiliki data-raw-pdf-id), langsung
+ *   menyimpan referensi halaman PDF aslinya (instan & ukuran A3/asli terjaga).
+ * - Jika halaman buatan aplikasi, discreenshot via html2canvas seperti biasa.
  */
 export async function captureSectionPages(
   root: HTMLElement,
@@ -180,7 +236,7 @@ export async function captureSectionPages(
   try {
     for (const img of imgEls) {
       const original = findOriginal(img.src);
-      if (!original) continue; // tidak ketemu: pakai gambar preview apa adanya
+      if (!original) continue;
       previousSrc.set(img, img.src);
       const url = URL.createObjectURL(original);
       objectUrls.push(url);
@@ -190,7 +246,19 @@ export async function captureSectionPages(
 
     for (let i = 0; i < pageEls.length; i++) {
       onProgress?.(i, pageEls.length);
-      const canvas = await html2canvas(pageEls[i], {
+
+      const el = pageEls[i];
+      const rawId =
+        el.dataset.rawPdfId ?? el.closest<HTMLElement>('[data-raw-pdf-id]')?.dataset.rawPdfId;
+      const rawRef = rawId ? rawPdfRegistry.get(rawId) : undefined;
+
+      if (rawRef) {
+        pages.push({ kind: 'pdf', bytes: rawRef.bytes, pageIndex: rawRef.pageIndex });
+        onProgress?.(i + 1, pageEls.length);
+        continue;
+      }
+
+      const canvas = await html2canvas(el, {
         scale: quality.scale,
         useCORS: true,
         backgroundColor: '#ffffff',
@@ -203,7 +271,7 @@ export async function captureSectionPages(
         h = A4_H_MM;
         w = (canvas.width * h) / canvas.height;
       }
-      pages.push({ img, x: (A4_W_MM - w) / 2, w, h });
+      pages.push({ kind: 'image', img, x: (A4_W_MM - w) / 2, w, h });
       onProgress?.(i + 1, pageEls.length);
     }
   } finally {
@@ -216,26 +284,56 @@ export async function captureSectionPages(
 }
 
 /**
- * Gabungkan semua bagian yang sudah tersimpan (urut sesuai `orderedModes`,
- * yaitu urutan menu: Cover sampai Lampiran KML) jadi satu file PDF.
- * Bagian yang belum disimpan otomatis dilewati.
+ * Gabungkan semua bagian yang sudah tersimpan jadi satu file PDF campuran:
+ * halaman laporan tetap A4 Portrait, halaman Import PDF (ABD, dll.) tetap ukuran aslinya.
  */
-export function mergeBundleToPdf(builderId: string, orderedModes: string[], fileName: string): number {
+export async function mergeBundleToPdf(
+  builderId: string,
+  orderedModes: string[],
+  fileName: string
+): Promise<number> {
   const m = bundles.get(builderId);
   if (!m || m.size === 0) throw new Error('Paket masih kosong');
 
-  const pdf = new jsPDF('p', 'mm', 'a4');
+  const outPdf = await PDFDocument.create();
+  const docCache = new Map<Uint8Array, PDFDocument>();
   let pageCount = 0;
+
   for (const mode of orderedModes) {
     const entry = m.get(mode);
     if (!entry) continue;
+
     for (const p of entry.pages) {
-      if (pageCount > 0) pdf.addPage();
-      pdf.addImage(p.img, 'JPEG', p.x, 0, p.w, p.h);
+      if (p.kind === 'pdf') {
+        let srcDoc = docCache.get(p.bytes);
+        if (!srcDoc) {
+          srcDoc = await PDFDocument.load(p.bytes, { ignoreEncryption: true });
+          docCache.set(p.bytes, srcDoc);
+        }
+        const [copied] = await outPdf.copyPages(srcDoc, [p.pageIndex]);
+        outPdf.addPage(copied);
+      } else {
+        const pageW = A4_W_MM * MM_TO_PT;
+        const pageH = A4_H_MM * MM_TO_PT;
+        const page = outPdf.addPage([pageW, pageH]);
+        const embedded = await outPdf.embedJpg(p.img);
+        const wPt = p.w * MM_TO_PT;
+        const hPt = p.h * MM_TO_PT;
+        const xPt = p.x * MM_TO_PT;
+        // Origin pdf-lib di kiri-bawah, sehingga posisi rata atas = pageH - hPt
+        page.drawImage(embedded, {
+          x: xPt,
+          y: pageH - hPt,
+          width: wPt,
+          height: hPt,
+        });
+      }
       pageCount++;
     }
   }
+
   if (pageCount === 0) throw new Error('Paket masih kosong');
-  pdf.save(fileName);
+  const outBytes = await outPdf.save();
+  triggerPdfDownload(outBytes, fileName);
   return pageCount;
 }

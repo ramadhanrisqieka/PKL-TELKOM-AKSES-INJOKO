@@ -3,6 +3,7 @@ import MainLayout from './MainLayout';
 import BeritaAcaraPage, { type ChoicePair } from './BeritaAcaraPage';
 import { compressImage } from '../utils/imageCompress';
 import { generatePdfFromElement } from '../utils/pdfFromElement';
+import { focusAndShake, showToast } from '../utils/uiFeedback';
 import ExportOptionsPanel, {
   DEFAULT_EXPORT_OPTIONS,
   QUALITY_PRESETS,
@@ -42,12 +43,6 @@ const emptyProject: ProjectData = {
   pelaksana: '',
 };
 
-// Dulu ada tombol pilih "telah/belum", "dapat/tidak dapat", "layak/tidak
-// layak" (komponen ChoicePicker) yang bisa diklik user di form. Atas
-// permintaan pembimbing, pilihan itu sekarang DIHILANGKAN dari form —
-// hasilnya dipatenkan selalu "telah", "dapat", "layak" (yang lain otomatis
-// tercoret), persis seperti contoh dokumen resminya. Lihat FIXED_CHOICE_*
-// di bawah: kalau nanti pola dokumennya berubah, cukup ganti nilai di sana.
 const FIXED_CHOICE_1: ChoicePair = { labels: ['telah', 'belum'], selected: 0 };
 const FIXED_CHOICE_2A: ChoicePair = { labels: ['dapat', 'tidak dapat'], selected: 0 };
 const FIXED_CHOICE_2B: ChoicePair = { labels: ['layak', 'tidak layak'], selected: 0 };
@@ -89,9 +84,10 @@ export default function BeritaAcaraForm({
     try {
       const preview = await compressImage(file);
       setSignatureDataUrl(preview);
+      showToast('Foto tanda tangan berhasil diunggah.', 'success');
     } catch (err) {
       console.error(err);
-      alert(`Foto tanda tangan "${file.name}" tidak bisa dibuka. Pastikan formatnya JPG atau PNG.`);
+      showToast(`Foto tanda tangan "${file.name}" tidak bisa dibuka. Pastikan formatnya JPG atau PNG.`, 'error');
     }
   };
 
@@ -106,28 +102,52 @@ export default function BeritaAcaraForm({
 
   const handlePreview = () => {
     if (docHeading.trim() === '') {
-      alert('Mohon isi judul dokumen terlebih dahulu.');
+      showToast('Mohon isi judul dokumen terlebih dahulu.', 'error');
+      focusAndShake(document.getElementById('ba-heading'));
       return;
     }
     const projectBelumLengkap = Object.values(project).some((v) => v.trim() === '');
     if (projectBelumLengkap) {
-      alert('Mohon lengkapi semua data proyek terlebih dahulu.');
+      showToast('Mohon lengkapi semua data proyek terlebih dahulu.', 'error');
+      const emptyField = Array.from(
+        document.querySelectorAll<HTMLInputElement | HTMLSelectElement>(
+          '#ba-project-fields input, #ba-project-fields select'
+        )
+      ).find((el) => el.value.trim() === '');
+      focusAndShake(emptyField ?? null);
       return;
     }
     if (!tanggalISO) {
-      alert('Mohon pilih tanggal Berita Acara.');
-      return;
-    }
-    if (nama.trim() === '' || nik.trim() === '') {
-      alert(dualSign ? 'Mohon isi Nama dan NIK penandatangan kanan.' : 'Mohon isi Nama dan NIK penandatangan.');
-      return;
-    }
-    if (dualSign && (leftParty.nama.trim() === '' || leftParty.nik.trim() === '')) {
-      alert('Mohon isi Nama dan NIK penandatangan kiri.');
+      showToast('Mohon pilih tanggal Berita Acara.', 'error');
+      focusAndShake(document.getElementById('ba-tanggal'));
       return;
     }
     if (kota.trim() === '') {
-      alert('Mohon isi kota untuk baris tanda tangan (mis. Surabaya).');
+      showToast('Mohon isi kota untuk baris tanda tangan (mis. Surabaya).', 'error');
+      focusAndShake(document.getElementById('ba-kota'));
+      return;
+    }
+    if (dualSign && (leftParty.nama.trim() === '' || leftParty.nik.trim() === '')) {
+      showToast('Mohon isi Nama dan NIK penandatangan kiri.', 'error');
+      const emptySign = Array.from(
+        document.querySelectorAll<HTMLInputElement>('.evidence-form input[type="text"]')
+      ).find((el) => el.id !== 'ba-closing' && el.value.trim() === '');
+      focusAndShake(emptySign ?? null);
+      return;
+    }
+    if (nama.trim() === '' || nik.trim() === '') {
+      showToast(
+        dualSign ? 'Mohon isi Nama dan NIK penandatangan kanan.' : 'Mohon isi Nama dan NIK penandatangan.',
+        'error'
+      );
+      if (!dualSign) {
+        focusAndShake(document.getElementById(nama.trim() === '' ? 'ba-nama' : 'ba-nik'));
+      } else {
+        const emptySign = Array.from(
+          document.querySelectorAll<HTMLInputElement>('.evidence-form input[type="text"]')
+        ).find((el) => el.id !== 'ba-closing' && el.value.trim() === '');
+        focusAndShake(emptySign ?? null);
+      }
       return;
     }
     setMode('preview');
@@ -144,9 +164,10 @@ export default function BeritaAcaraForm({
         undefined,
         QUALITY_PRESETS[exportOpts.quality]
       );
+      showToast(`Berita Acara ${docTitle} berhasil diunduh.`, 'success');
     } catch (err) {
       console.error(err);
-      alert('Gagal membuat PDF, coba lagi.');
+      showToast('Gagal membuat PDF, coba lagi.', 'error');
     } finally {
       setIsProcessing(false);
     }
@@ -165,7 +186,7 @@ export default function BeritaAcaraForm({
         </div>
 
         {/* Panel opsi berada DI LUAR #pdf-ba-content, jadi tidak ikut masuk PDF */}
-        <ExportOptionsPanel value={exportOpts} onChange={setExportOpts} showColumns={false} />
+        <ExportOptionsPanel value={exportOpts} onChange={setExportOpts} />
 
         <div id="pdf-ba-content">
           <BeritaAcaraPage
@@ -204,7 +225,7 @@ export default function BeritaAcaraForm({
           />
         </div>
 
-        <div className="evidence-form-fields">
+        <div id="ba-project-fields" className="evidence-form-fields">
           <label>
             Proyek
             <input
@@ -262,11 +283,12 @@ export default function BeritaAcaraForm({
         <div className="evidence-form-fields">
           <label>
             Tanggal Berita Acara
-            <input type="date" value={tanggalISO} onChange={(e) => setTanggalISO(e.target.value)} />
+            <input id="ba-tanggal" type="date" value={tanggalISO} onChange={(e) => setTanggalISO(e.target.value)} />
           </label>
           <label>
             Kota (untuk baris tanda tangan)
             <input
+              id="ba-kota"
               type="text"
               value={kota}
               onChange={(e) => setKota(e.target.value)}
@@ -283,71 +305,65 @@ export default function BeritaAcaraForm({
           <DualSignFields idPrefix="ba" left={leftParty} right={{ nama, nik, jabatanBaris1, jabatanBaris2, signatureDataUrl }} onLeftChange={patchLeft} onRightChange={patchRight} />
         ) : (
           <>
-        <div className="evidence-form-fields">
-          <label>
-            Nama Penandatangan
-            <input
-              type="text"
-              value={nama}
-              onChange={(e) => setNama(e.target.value)}
-              placeholder="Ketik disini"
-            />
-          </label>
-          <label>
-            NIK
-            <input
-              type="text"
-              value={nik}
-              onChange={(e) => setNik(e.target.value)}
-              placeholder="Ketik disini"
-            />
-          </label>
-          <label>
-            Jabatan — Baris 1
-            <input
-              type="text"
-              value={jabatanBaris1}
-              onChange={(e) => setJabatanBaris1(e.target.value)}
-              placeholder="Contoh: WASPANG"
-            />
-          </label>
-          <label>
-            Jabatan — Baris 2
-            <input
-              type="text"
-              value={jabatanBaris2}
-              onChange={(e) => setJabatanBaris2(e.target.value)}
-              placeholder="Contoh: PT. TELKOM AKSES"
-            />
-          </label>
-        </div>
+            <div className="evidence-form-fields">
+              <label>
+                Nama Penandatangan
+                <input
+                  id="ba-nama"
+                  type="text"
+                  value={nama}
+                  onChange={(e) => setNama(e.target.value)}
+                  placeholder="Ketik disini"
+                />
+              </label>
+              <label>
+                NIK
+                <input
+                  id="ba-nik"
+                  type="text"
+                  value={nik}
+                  onChange={(e) => setNik(e.target.value)}
+                  placeholder="Ketik disini"
+                />
+              </label>
+              <label>
+                Jabatan — Baris 1
+                <input
+                  type="text"
+                  value={jabatanBaris1}
+                  onChange={(e) => setJabatanBaris1(e.target.value)}
+                  placeholder="Contoh: WASPANG"
+                />
+              </label>
+              <label>
+                Jabatan — Baris 2
+                <input
+                  type="text"
+                  value={jabatanBaris2}
+                  onChange={(e) => setJabatanBaris2(e.target.value)}
+                  placeholder="Contoh: PT. TELKOM AKSES"
+                />
+              </label>
+            </div>
 
-        <div className="evidence-heading-field">
-          <label htmlFor="ba-sign-upload">Tanda Tangan (opsional, foto atau scan)</label>
-          <input
-            id="ba-sign-upload"
-            type="file"
-            accept="image/*"
-            onChange={(e) => {
-              const file = e.target.files?.[0] ?? null;
-              e.target.value = '';
-              handleSignatureChange(file);
-            }}
-          />
-          {signatureDataUrl && (
-            <img src={signatureDataUrl} alt="Pratinjau tanda tangan" className="ba-signature-preview" />
-          )}
-        </div>
+            <div className="evidence-heading-field">
+              <label htmlFor="ba-sign-upload">Tanda Tangan (opsional, foto atau scan)</label>
+              <input
+                id="ba-sign-upload"
+                type="file"
+                accept="image/*"
+                onChange={(e) => {
+                  const file = e.target.files?.[0] ?? null;
+                  e.target.value = '';
+                  handleSignatureChange(file);
+                }}
+              />
+              {signatureDataUrl && (
+                <img src={signatureDataUrl} alt="Pratinjau tanda tangan" className="ba-signature-preview" />
+              )}
+            </div>
           </>
         )}
-
-        {/*
-          Dulu di sini ada "Poin 1" dan "Poin 2": tombol untuk memilih
-          telah/belum, dapat/tidak dapat, layak/tidak layak. Atas permintaan
-          pembimbing, bagian ini DIHAPUS dari form — hasilnya di PDF sekarang
-          dipatenkan selalu "telah", "dapat", "layak" (lihat FIXED_CHOICE_*
-          di atas komponen ini), sama seperti dokumen contoh resminya.
-        */}
 
         <div className="evidence-heading-field">
           <label htmlFor="ba-closing">Kalimat Penutup</label>
